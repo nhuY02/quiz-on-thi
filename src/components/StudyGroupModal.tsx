@@ -300,22 +300,29 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
                   padding: '0.9rem 1.1rem',
                   borderRadius: 'var(--radius-lg)',
                   background: 'var(--brand-primary-light)',
                   border: '1px solid rgba(99, 102, 241, 0.3)',
-                  flexWrap: 'wrap',
-                  gap: '0.75rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.35rem',
                 }}
               >
-                <div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--brand-primary)', fontWeight: 600 }}>
-                    Đang trong nhóm học tập:
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.15rem' }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--brand-primary)', fontWeight: 600 }}>
+                  Đang trong nhóm học tập:
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                     <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.03em' }}>
                       👥 {currentGroupId}
                     </span>
@@ -324,34 +331,34 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
                       className={`btn btn-sm ${showMembers ? 'btn-primary' : 'btn-secondary'}`}
                       onClick={() => setShowMembers(!showMembers)}
                       title="Xem danh sách thành viên trong nhóm"
-                      style={{ fontSize: '0.78rem', padding: '0.2rem 0.6rem' }}
+                      style={{ fontSize: '0.78rem', padding: '0.32rem 0.65rem' }}
                     >
                       <Users size={13} />
                       <span>Thành viên ({members.length})</span>
                     </button>
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={handleCopyInviteLink}
-                    title="Sao chép link mời gửi cho bạn bè"
-                  >
-                    {copiedLink ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                    <span>{copiedLink ? 'Đã sao chép link!' : 'Sao chép link mời'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={handleLeaveGroup}
-                    title="Rời nhóm này"
-                    style={{ color: 'var(--error)' }}
-                  >
-                    <LogOut size={14} />
-                    <span>Rời nhóm</span>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={handleCopyInviteLink}
+                      title="Sao chép link mời gửi cho bạn bè"
+                    >
+                      {copiedLink ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+                      <span>{copiedLink ? 'Đã sao chép link!' : 'Sao chép link mời'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={handleLeaveGroup}
+                      title="Rời nhóm này"
+                      style={{ color: 'var(--error)' }}
+                    >
+                      <LogOut size={14} />
+                      <span>Rời nhóm</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

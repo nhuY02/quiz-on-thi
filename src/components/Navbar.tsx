@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Settings, Archive, Moon, Sun, Shield, User, X, Check } from 'lucide-react';
+import { BookOpen, Settings, Archive, Moon, Sun, Shield, User, X, Check, Users } from 'lucide-react';
 import { getUserNickname, setUserNickname } from '../services/firebaseService';
 
 interface NavbarProps {
@@ -7,7 +7,9 @@ interface NavbarProps {
   onNavigateHome: () => void;
   onOpenSettings: () => void;
   onOpenSavedBanks: () => void;
+  onOpenStudyGroup: () => void;
   onOpenAdmin: () => void;
+  activeGroupId: string | null;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   savedCount: number;
@@ -18,7 +20,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateHome,
   onOpenSettings,
   onOpenSavedBanks,
+  onOpenStudyGroup,
   onOpenAdmin,
+  activeGroupId,
   theme,
   onToggleTheme,
   savedCount,
@@ -98,6 +102,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {savedCount}
               </span>
             )}
+          </button>
+
+          {/* Study Group Button */}
+          <button
+            className={`btn btn-sm ${activeGroupId ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={onOpenStudyGroup}
+            title={activeGroupId ? `Đang trong nhóm học: ${activeGroupId}` : 'Tham gia hoặc Tạo nhóm học tập để ôn chung'}
+            style={{ fontSize: '0.82rem' }}
+          >
+            <Users size={16} />
+            <span style={{ display: 'none', md: 'inline' } as any}>
+              {activeGroupId ? activeGroupId : 'Nhóm học'}
+            </span>
           </button>
 
           <button

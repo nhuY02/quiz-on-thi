@@ -10,8 +10,11 @@ import {
   doc,
   getDoc,
   setDoc,
+  where,
+  deleteDoc,
   Firestore,
 } from 'firebase/firestore';
+import type { SavedQuizBank } from '../types/quiz';
 import {
   getAuth,
   signInWithPopup,
@@ -54,9 +57,18 @@ export interface SubmissionLogItem {
   createdAt: string;
 }
 
+export interface GroupQuizItem {
+  id?: string;
+  groupId: string;
+  quizBank: SavedQuizBank;
+  sharedBy: string;
+  sharedAt: string;
+}
+
 const STORAGE_KEYS = {
   FIREBASE_CONFIG: 'quiz_on_thi_firebase_config',
   USER_NICKNAME: 'quiz_on_thi_user_nickname',
+  ACTIVE_GROUP_ID: 'quiz_on_thi_active_group_id',
 };
 
 // Owner default email from git author
@@ -98,6 +110,20 @@ export function setUserNickname(name: string): void {
   if (name.trim()) {
     localStorage.setItem(STORAGE_KEYS.USER_NICKNAME, name.trim());
   }
+}
+
+export function getActiveGroupId(): string | null {
+  return localStorage.getItem(STORAGE_KEYS.ACTIVE_GROUP_ID) || null;
+}
+
+export function setActiveGroupId(groupId: string): void {
+  if (groupId.trim()) {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_GROUP_ID, groupId.trim().toUpperCase());
+  }
+}
+
+export function clearActiveGroupId(): void {
+  localStorage.removeItem(STORAGE_KEYS.ACTIVE_GROUP_ID);
 }
 
 export function getFirebaseApp(): FirebaseApp | null {
@@ -328,5 +354,61 @@ export async function getSubmissionLogs(limitCount = 50): Promise<SubmissionLogI
   } catch (err) {
     console.error('Lỗi lấy danh sách submission logs:', err);
     return [];
+  }
+}
+
+/**
+ * Chia sẻ một bộ đề thi vào nhóm học tập
+ */
+export async function shareQuizToGroup(groupId: string, quizBank: SavedQuizBank): Promise<void> {
+  const db = getDb();
+  if (!db) throw new Error('Chưa kết nối cơ sở dữ liệu Firebase.');
+  const cleanGroup = groupId.trim().toUpperCase();
+  const item = {
+    groupId: cleanGroup,
+    quizBank,
+    sharedBy: getUserNickname(),
+    sharedAt: new Date().toISOString(),
+  };
+  await addDoc(collection(db, 'group_quizzes'), item);
+}
+
+/**
+ * Lấy danh sách các đề thi được chia sẻ trong nhóm học tập
+ */
+export async function getGroupQuizzes(groupId: string): Promise<GroupQuizItem[]> {
+  const db = getDb();
+  if (!db) return [];
+  const cleanGroup = groupId.trim().toUpperCase();
+
+  try {
+    const q = query(
+      collection(db, 'group_quizzes'),
+      where('groupId', '==', cleanGroup),
+      limit(50)
+    );
+    const snap = await getDocs(q);
+    const list = snap.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<GroupQuizItem, 'id'>),
+    }));
+    // Sắp xếp đề mới nhất lên đầu
+    return list.sort((a, b) => (b.sharedAt || '').localeCompare(a.sharedAt || ''));
+  } catch (err) {
+    console.error('Lỗi lấy danh sách đề thi của nhóm:', err);
+    return [];
+  }
+}
+
+/**
+ * Xóa một đề thi khỏi nhóm học tập
+ */
+export async function deleteGroupQuiz(id: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  try {
+    await deleteDoc(doc(db, 'group_quizzes', id));
+  } catch (err) {
+    console.error('Lỗi xóa đề thi khỏi nhóm:', err);
   }
 }

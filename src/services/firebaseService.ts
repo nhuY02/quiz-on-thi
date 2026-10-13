@@ -13,6 +13,7 @@ import {
   where,
   deleteDoc,
   updateDoc,
+  onSnapshot,
   Firestore,
 } from 'firebase/firestore';
 import type { SavedQuizBank } from '../types/quiz';
@@ -504,3 +505,58 @@ export async function getGroupMembers(groupId: string): Promise<string[]> {
     return [myNick];
   }
 }
+
+/**
+ * Lắng nghe thời gian thực (Realtime onSnapshot) danh sách đề thi và thành viên trong nhóm
+ */
+export function subscribeGroupData(
+  groupId: string,
+  onUpdate: (quizzes: GroupQuizItem[], members: string[]) => void
+): () => void {
+  const db = getDb();
+  const myNick = getUserNickname();
+  if (!db) {
+    onUpdate([], [myNick]);
+    return () => {};
+  }
+  const cleanGroup = groupId.trim().toUpperCase();
+
+  const q = query(
+    collection(db, 'group_quizzes'),
+    where('groupId', '==', cleanGroup),
+    limit(100)
+  );
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snap) => {
+      const quizList: GroupQuizItem[] = [];
+      const memberSet = new Set<string>();
+      memberSet.add(myNick);
+
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.isMemberRecord && data.nickname) {
+          memberSet.add(data.nickname);
+        } else if (data.quizBank) {
+          quizList.push({
+            id: d.id,
+            ...(data as Omit<GroupQuizItem, 'id'>),
+          });
+          if (data.sharedBy) {
+            memberSet.add(data.sharedBy);
+          }
+        }
+      });
+
+      quizList.sort((a, b) => (b.sharedAt || '').localeCompare(a.sharedAt || ''));
+      onUpdate(quizList, Array.from(memberSet));
+    },
+    (err) => {
+      console.error('Lỗi realtime nhóm học tập:', err);
+    }
+  );
+
+  return unsubscribe;
+}
+

@@ -30,6 +30,7 @@ import {
   updateGroupQuizAllowDownload,
   registerGroupMember,
   getGroupMembers,
+  subscribeGroupData,
   getUserNickname,
   GroupQuizItem,
 } from '../services/firebaseService';
@@ -66,15 +67,26 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
   const [editingTitle, setEditingTitle] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Realtime subscription: tự động cập nhật ngay lập tức khi bạn bè khóa tải, đổi tên hoặc đưa đề mới
   useEffect(() => {
-    if (isOpen) {
-      const gId = getActiveGroupId();
-      setCurrentGroupId(gId);
-      if (gId) {
-        fetchQuizzes(gId);
-      }
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+
+    const gId = currentGroupId || getActiveGroupId();
+    if (!gId) return;
+
+    registerGroupMember(gId, currentUser);
+    setIsLoading(true);
+
+    const unsubscribe = subscribeGroupData(gId, (quizzes, mList) => {
+      setGroupQuizzes(quizzes);
+      setMembers(mList);
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isOpen, currentGroupId, currentUser]);
 
   const fetchQuizzes = async (gId: string) => {
     setIsLoading(true);
@@ -101,7 +113,7 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
     setActiveGroupId(clean);
     setCurrentGroupId(clean);
     setInputGroupId('');
-    fetchQuizzes(clean);
+    registerGroupMember(clean, currentUser);
   };
 
   const handleLeaveGroup = () => {

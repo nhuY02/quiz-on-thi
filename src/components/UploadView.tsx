@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { LLMConfig, DocumentSection, SavedQuizBank } from '../types/quiz';
 import { parseFile, ParsedDocument } from '../services/fileParser';
 import { splitDocumentIntoSections } from '../services/sectionSplitter';
 import { processSectionQuiz, calculateCoverageReport } from '../services/llmService';
-import { saveQuizBank } from '../services/storage';
+import { saveQuizBank, saveActiveDraft, getActiveDraft, clearActiveDraft } from '../services/storage';
 import { SAMPLE_QUIZ_BANK } from '../services/sampleData';
 import { logFileUploadEvent } from '../services/firebaseService';
 import {
@@ -44,12 +44,46 @@ export const UploadView: React.FC<UploadViewProps> = ({
   const [currentSectionIndex, setCurrentSectionIndex] = useState<number>(-1);
   const [currentStepStatus, setCurrentStepStatus] = useState<string>('');
   const [generalError, setGeneralError] = useState<string>('');
+  const [restoredDraftInfo, setRestoredDraftInfo] = useState<{
+    fileName: string;
+    completedCount: number;
+    totalCount: number;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isPausedRef = useRef(false);
   const isGeneratingRef = useRef(false);
   const sectionsRef = useRef<DocumentSection[]>([]);
   sectionsRef.current = sections;
+
+  // Restore draft on mount and warn on reload during generation
+  useEffect(() => {
+    const draft = getActiveDraft();
+    if (draft && draft.sections && draft.sections.length > 0) {
+      const safeSections = draft.sections.map((s) =>
+        s.status === 'processing' ? { ...s, status: 'pending' as const } : s
+      );
+      setParsedDoc(draft.parsedDoc);
+      setSections(safeSections);
+      sectionsRef.current = safeSections;
+
+      const completed = safeSections.filter((s) => s.status === 'completed').length;
+      setRestoredDraftInfo({
+        fileName: draft.fileName,
+        completedCount: completed,
+        totalCount: safeSections.length,
+      });
+    }
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isGeneratingRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   const handleFileSelect = async (selectedFile: File) => {
     setGeneralError('');
@@ -69,8 +103,16 @@ export const UploadView: React.FC<UploadViewProps> = ({
       setParseStatus('Đang phân tích cấu trúc & chia phần tài liệu...');
       const detectedSections = splitDocumentIntoSections(doc);
       setSections(detectedSections);
+      sectionsRef.current = detectedSections;
       setIsParsing(false);
       setParseStatus('');
+      setRestoredDraftInfo(null);
+      saveActiveDraft({
+        parsedDoc: doc,
+        sections: detectedSections,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+      });
     } catch (err: unknown) {
       setIsParsing(false);
       const message = err instanceof Error ? err.message : String(err);
@@ -178,6 +220,13 @@ export const UploadView: React.FC<UploadViewProps> = ({
             status: 'completed',
           };
           setSections([...completedList]);
+          sectionsRef.current = completedList;
+          saveActiveDraft({
+            parsedDoc,
+            sections: completedList,
+            fileName: file ? file.name : parsedDoc?.fileName,
+            fileSize: file ? file.size : parsedDoc?.fileSize,
+          });
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -209,6 +258,8 @@ export const UploadView: React.FC<UploadViewProps> = ({
     // Compute final coverage report and quiz bank if all completed
     const finalSections = sectionsRef.current;
     if (finalSections.length > 0 && finalSections.every((s) => s.status === 'completed')) {
+      clearActiveDraft();
+      setRestoredDraftInfo(null);
       const coverageReport = calculateCoverageReport(finalSections);
       const allQuestions = finalSections.flatMap((s) => s.questions);
 
@@ -309,9 +360,26 @@ export const UploadView: React.FC<UploadViewProps> = ({
     }
     const updated = sections.filter((_, i) => i !== index);
     setSections(updated);
+    sectionsRef.current = updated;
+    saveActiveDraft({
+      parsedDoc,
+      sections: updated,
+      fileName: file ? file.name : parsedDoc?.fileName,
+      fileSize: file ? file.size : parsedDoc?.fileSize,
+    });
+  };
+
+  const handleDiscardDraft = () => {
+    clearActiveDraft();
+    setParsedDoc(null);
+    setFile(null);
+    setSections([]);
+    sectionsRef.current = [];
+    setRestoredDraftInfo(null);
   };
 
   const handleLoadSample = () => {
+    clearActiveDraft();
     saveQuizBank(SAMPLE_QUIZ_BANK);
     onQuizReady(SAMPLE_QUIZ_BANK);
   };
@@ -418,13 +486,17 @@ export const UploadView: React.FC<UploadViewProps> = ({
         </div>
 
         <div className="drop-text-primary">
-          {file ? file.name : 'Kéo thả file vào đây hoặc bấm để chọn'}
+          {file ? file.name : parsedDoc ? parsedDoc.fileName : 'Kéo thả file vào đây hoặc bấm để chọn'}
         </div>
         <div className="drop-text-secondary">
-          Hỗ trợ định dạng <strong>PDF</strong>, <strong>Word (.docx)</strong>, <strong>Văn bản (.txt)</strong>.
+          {parsedDoc
+            ? 'Bấm để chọn file khác nếu bạn muốn thay thế tài liệu hiện tại.'
+            : (
+              <>Hỗ trợ định dạng <strong>PDF</strong>, <strong>Word (.docx)</strong>, <strong>Văn bản (.txt)</strong>.</>
+            )}
         </div>
 
-        {file && (
+        {(file || parsedDoc) && (
           <div
             style={{
               display: 'inline-flex',
@@ -440,13 +512,55 @@ export const UploadView: React.FC<UploadViewProps> = ({
             }}
           >
             <FileText size={16} color="var(--brand-primary)" />
-            <span>Dung lượng: {(file.size / 1024).toFixed(1)} KB</span>
+            <span>
+              Dung lượng:{' '}
+              {(((file ? file.size : parsedDoc?.fileSize) || 0) / 1024).toFixed(1)} KB
+            </span>
             {parsedDoc && parsedDoc.pageCount > 1 && (
               <span>• {parsedDoc.pageCount} trang</span>
             )}
           </div>
         )}
       </div>
+
+      {/* Restored Draft Banner */}
+      {restoredDraftInfo && !isGenerating && (
+        <div
+          style={{
+            marginTop: '1.25rem',
+            padding: '0.85rem 1.15rem',
+            borderRadius: 'var(--radius-lg)',
+            background: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <CheckCircle2 size={20} color="var(--success)" style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: '0.88rem' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>
+                Đã tự động khôi phục tiến trình đang tạo dở:
+              </strong>{' '}
+              <span style={{ color: 'var(--text-secondary)' }}>
+                {restoredDraftInfo.fileName} (Đã hoàn thành {restoredDraftInfo.completedCount}/{restoredDraftInfo.totalCount} phần - không tốn lại token!).
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={handleDiscardDraft}
+            style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}
+            title="Hủy bỏ bản nháp này để tải file mới"
+          >
+            Hủy bản nháp
+          </button>
+        </div>
+      )}
 
       {/* Parsing progress */}
       {isParsing && (
@@ -535,7 +649,11 @@ export const UploadView: React.FC<UploadViewProps> = ({
                 style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
               >
                 <Sparkles size={18} />
-                Bắt đầu sinh câu hỏi ({sections.length} phần)
+                {sections.some((s) => s.status === 'completed') ? (
+                  <>Tiếp tục sinh câu hỏi (Còn lại {sections.filter((s) => s.status !== 'completed').length}/{sections.length} phần)</>
+                ) : (
+                  <>Bắt đầu sinh câu hỏi ({sections.length} phần)</>
+                )}
                 <ArrowRight size={18} />
               </button>
             )}

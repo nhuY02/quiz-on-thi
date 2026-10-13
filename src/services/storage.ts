@@ -1,10 +1,12 @@
-import { SavedQuizBank, LLMConfig } from '../types/quiz';
+import { SavedQuizBank, LLMConfig, DocumentSection } from '../types/quiz';
+import { ParsedDocument } from './fileParser';
 
 const STORAGE_KEYS = {
   QUIZ_BANKS: 'quiz_on_thi_banks_v1',
   ACTIVE_BANK_ID: 'quiz_on_thi_active_bank_id',
   LLM_CONFIG: 'quiz_on_thi_llm_config',
   THEME: 'quiz_on_thi_theme',
+  ACTIVE_DRAFT: 'quiz_on_thi_active_draft_v1',
 };
 
 export const DEFAULT_LLM_CONFIG: LLMConfig = {
@@ -123,4 +125,48 @@ export async function importQuizBankFromJson(file: File): Promise<SavedQuizBank>
   };
   saveQuizBank(bank);
   return bank;
+}
+
+export interface ActiveDraft {
+  parsedDoc: ParsedDocument | null;
+  sections: DocumentSection[];
+  fileName: string;
+  fileSize: number;
+  updatedAt: number;
+}
+
+export function saveActiveDraft(draft: {
+  parsedDoc: ParsedDocument | null;
+  sections: DocumentSection[];
+  fileName?: string;
+  fileSize?: number;
+}): void {
+  try {
+    const payload: ActiveDraft = {
+      parsedDoc: draft.parsedDoc,
+      sections: draft.sections,
+      fileName: draft.fileName || draft.parsedDoc?.fileName || 'tai_lieu.pdf',
+      fileSize: draft.fileSize || draft.parsedDoc?.fileSize || 0,
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_DRAFT, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Không thể lưu bản nháp tiến trình:', err);
+  }
+}
+
+export function getActiveDraft(): ActiveDraft | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACTIVE_DRAFT);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function clearActiveDraft(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_DRAFT);
+  } catch {}
 }

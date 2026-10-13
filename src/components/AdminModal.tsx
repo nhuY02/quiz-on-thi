@@ -123,11 +123,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
       <div
         className="modal-content animate-fade-in"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: currentUser ? '780px' : '440px', width: '100%' }}
+        style={{ maxWidth: currentUser ? '780px' : '520px', width: '100%' }}
       >
         {/* Header */}
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
             <div
               style={{
                 width: '2rem',
@@ -138,11 +138,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
               <Shield size={18} />
             </div>
-            <h2 className="modal-title">Bảng Quản Trị (Admin Dashboard)</h2>
+            <h2 className="modal-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Bảng Quản Trị (Admin Dashboard)
+            </h2>
           </div>
           <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Đóng">
             <X size={18} />
@@ -172,7 +175,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
               Xác thực Quản Trị Viên
             </h3>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-              Khu vực dành riêng cho chủ sở hữu trang web. Đăng nhập an toàn bằng tài khoản Google (không lưu mật khẩu trong mã nguồn).
+              Khu vực dành riêng cho chủ sở hữu trang web. Đăng nhập an toàn bằng tài khoản Google.
             </p>
 
             {authError && (

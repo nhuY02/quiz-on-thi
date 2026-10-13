@@ -12,10 +12,12 @@ import {
   getSavedLLMConfig,
   saveLLMConfig,
 } from './services/storage';
+import { logQuizSubmissionEvent } from './services/firebaseService';
 import { Navbar } from './components/Navbar';
 import { SettingsModal } from './components/SettingsModal';
 import { SavedBanksModal } from './components/SavedBanksModal';
 import { CoverageModal } from './components/CoverageModal';
+import { AdminModal } from './components/AdminModal';
 import { UploadView } from './components/UploadView';
 import { ConfigView } from './components/ConfigView';
 import { QuizView } from './components/QuizView';
@@ -30,6 +32,7 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSavedBanksOpen, setIsSavedBanksOpen] = useState(false);
   const [isCoverageOpen, setIsCoverageOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   // Core quiz state
   const [llmConfig, setLlmConfig] = useState<LLMConfig>(getSavedLLMConfig());
@@ -133,6 +136,23 @@ export function App() {
   ) => {
     setActiveUserAnswers(userAnswers);
     setActiveFlagged(flagged);
+
+    // Log quiz submission event to Firebase for Admin
+    if (activeQuizBank) {
+      let correct = 0;
+      activeQuestions.forEach((q) => {
+        if (userAnswers[q.id] === q.correctIndex) correct++;
+      });
+      const pct = activeQuestions.length === 0 ? 0 : Math.round((correct / activeQuestions.length) * 100);
+      logQuizSubmissionEvent({
+        quizTitle: activeQuizBank.title,
+        score: correct,
+        total: activeQuestions.length,
+        percentage: pct,
+        mode: activeConfig?.mode || 'practice',
+      });
+    }
+
     setCurrentScreen('result');
   };
 
@@ -165,6 +185,7 @@ export function App() {
         onNavigateHome={() => setCurrentScreen('upload')}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenSavedBanks={() => setIsSavedBanksOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
         savedCount={savedBanks.length}
@@ -235,6 +256,12 @@ export function App() {
           report={activeQuizBank.coverageReport}
         />
       )}
+
+      {/* Admin Dashboard Modal */}
+      <AdminModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+      />
     </div>
   );
 }

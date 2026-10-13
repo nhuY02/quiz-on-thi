@@ -1,11 +1,13 @@
-import React from 'react';
-import { BookOpen, Settings, Archive, Moon, Sun } from 'lucide-react';
+import React, { useState } from 'react';
+import { BookOpen, Settings, Archive, Moon, Sun, Shield, User } from 'lucide-react';
+import { getUserNickname, setUserNickname } from '../services/firebaseService';
 
 interface NavbarProps {
   currentScreen: 'upload' | 'config' | 'quiz' | 'result';
   onNavigateHome: () => void;
   onOpenSettings: () => void;
   onOpenSavedBanks: () => void;
+  onOpenAdmin: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   savedCount: number;
@@ -16,10 +18,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateHome,
   onOpenSettings,
   onOpenSavedBanks,
+  onOpenAdmin,
   theme,
   onToggleTheme,
   savedCount,
 }) => {
+  const [nickname, setNickname] = useState(getUserNickname());
+
+  const handleEditNickname = () => {
+    const newName = prompt('Nhập tên hoặc biệt danh của bạn (để hiển thị trong kết quả và cho Admin):', nickname);
+    if (newName && newName.trim()) {
+      setUserNickname(newName.trim());
+      setNickname(newName.trim());
+    }
+  };
+
   return (
     <header className="navbar">
       <div className="nav-brand" onClick={onNavigateHome} title="Về trang chủ">
@@ -39,6 +52,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             Tạo đề mới
           </button>
         )}
+
+        {/* User Nickname Button */}
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={handleEditNickname}
+          title="Bấm để đổi tên/biệt danh của bạn"
+          style={{ fontSize: '0.82rem' }}
+        >
+          <User size={15} />
+          <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {nickname}
+          </span>
+        </button>
 
         <button
           className="btn btn-ghost btn-sm"
@@ -72,6 +98,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Settings size={17} />
           <span style={{ display: 'none', md: 'inline' } as any}>Cấu hình AI</span>
+        </button>
+
+        {/* Admin Button */}
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={onOpenAdmin}
+          title="Trang quản trị dành cho Admin"
+          style={{ color: 'var(--brand-primary)' }}
+        >
+          <Shield size={16} />
+          <span style={{ display: 'none', md: 'inline' } as any}>Admin</span>
         </button>
 
         <button

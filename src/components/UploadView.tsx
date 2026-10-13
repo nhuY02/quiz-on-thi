@@ -5,6 +5,7 @@ import { splitDocumentIntoSections } from '../services/sectionSplitter';
 import { processSectionQuiz, calculateCoverageReport } from '../services/llmService';
 import { saveQuizBank } from '../services/storage';
 import { SAMPLE_QUIZ_BANK } from '../services/sampleData';
+import { logFileUploadEvent } from '../services/firebaseService';
 import {
   UploadCloud,
   FileText,
@@ -156,6 +157,13 @@ export const UploadView: React.FC<UploadViewProps> = ({
     };
 
     saveQuizBank(quizBank);
+    logFileUploadEvent({
+      fileName: quizBank.fileName,
+      fileSize: quizBank.fileSize,
+      questionCount: quizBank.questions.length,
+      sectionsCount: quizBank.sections.length,
+      quizTitle: quizBank.title,
+    });
     onQuizReady(quizBank);
   };
 
@@ -205,6 +213,13 @@ export const UploadView: React.FC<UploadViewProps> = ({
           coverageReport,
         };
         saveQuizBank(quizBank);
+        logFileUploadEvent({
+          fileName: quizBank.fileName,
+          fileSize: quizBank.fileSize,
+          questionCount: quizBank.questions.length,
+          sectionsCount: quizBank.sections.length,
+          quizTitle: quizBank.title,
+        });
         onQuizReady(quizBank);
       }
     } catch (err: unknown) {

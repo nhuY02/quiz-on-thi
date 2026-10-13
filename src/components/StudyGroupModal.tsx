@@ -18,6 +18,7 @@ import {
   Lock,
   LockOpen,
   User,
+  Search,
 } from 'lucide-react';
 import {
   getActiveGroupId,
@@ -67,6 +68,8 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [searchGroupTerm, setSearchGroupTerm] = useState('');
+  const [searchPersonalTerm, setSearchPersonalTerm] = useState('');
 
   // Realtime subscription: tự động cập nhật ngay lập tức khi bạn bè khóa tải, đổi tên hoặc đưa đề mới
   useEffect(() => {
@@ -414,48 +417,132 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
           )}
 
           {/* List of quizzes shared in the group */}
-          {currentGroupId && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Đề Thi Trong Nhóm ({groupQuizzes.length})
-                </h3>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => fetchQuizzes(currentGroupId)}
-                  disabled={isLoading}
-                >
-                  <RotateCw size={13} className={isLoading ? 'animate-spin' : ''} />
-                  <span>Làm mới</span>
-                </button>
-              </div>
+          {currentGroupId && (() => {
+            const filteredGroupQuizzes = groupQuizzes.filter((item) => {
+              if (!searchGroupTerm.trim()) return true;
+              const term = searchGroupTerm.toLowerCase().trim();
+              return (
+                item.quizBank.title.toLowerCase().includes(term) ||
+                (item.sharedBy && item.sharedBy.toLowerCase().includes(term)) ||
+                (item.quizBank.fileName && item.quizBank.fileName.toLowerCase().includes(term))
+              );
+            });
 
-              {isLoading ? (
-                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  <RotateCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
-                  <p style={{ fontSize: '0.88rem' }}>Đang tải đề thi của nhóm...</p>
+            return (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Đề Thi Trong Nhóm {searchGroupTerm ? `(${filteredGroupQuizzes.length}/${groupQuizzes.length})` : `(${groupQuizzes.length})`}
+                  </h3>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => fetchQuizzes(currentGroupId)}
+                    disabled={isLoading}
+                  >
+                    <RotateCw size={13} className={isLoading ? 'animate-spin' : ''} />
+                    <span>Làm mới</span>
+                  </button>
                 </div>
-              ) : groupQuizzes.length === 0 ? (
-                <div
-                  style={{
-                    textAlign: 'center',
-                    padding: '2.5rem 1rem',
-                    background: 'var(--bg-subtle)',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1px dashed var(--border-strong)',
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  <BookOpen size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-                  <p style={{ fontWeight: 600, fontSize: '0.92rem' }}>Nhóm chưa có đề thi nào</p>
-                  <p style={{ fontSize: '0.82rem', marginTop: '0.2rem' }}>
-                    Hãy chia sẻ các đề bạn đã tạo ở bên dưới lên nhóm để bạn bè cùng làm!
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '35vh', overflowY: 'auto' }}>
-                  {groupQuizzes.map((item) => {
+
+                {/* Search Bar for Group Quizzes */}
+                {groupQuizzes.length > 0 && (
+                  <div style={{ position: 'relative', width: '100%', marginBottom: '0.75rem' }}>
+                    <Search
+                      size={16}
+                      style={{
+                        position: 'absolute',
+                        left: '0.85rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-muted)',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Tìm kiếm đề thi trong nhóm (theo tên đề, người chia sẻ)..."
+                      value={searchGroupTerm}
+                      onChange={(e) => setSearchGroupTerm(e.target.value)}
+                      style={{
+                        width: '100%',
+                        paddingLeft: '2.4rem',
+                        paddingRight: searchGroupTerm ? '2.4rem' : '0.85rem',
+                        fontSize: '0.88rem',
+                        borderRadius: 'var(--radius-md)',
+                      }}
+                    />
+                    {searchGroupTerm && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-icon"
+                        onClick={() => setSearchGroupTerm('')}
+                        style={{
+                          position: 'absolute',
+                          right: '0.4rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          padding: '0.25rem',
+                          color: 'var(--text-muted)',
+                        }}
+                        title="Xóa tìm kiếm"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {isLoading ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                    <RotateCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
+                    <p style={{ fontSize: '0.88rem' }}>Đang tải đề thi của nhóm...</p>
+                  </div>
+                ) : groupQuizzes.length === 0 ? (
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      padding: '2.5rem 1rem',
+                      background: 'var(--bg-subtle)',
+                      borderRadius: 'var(--radius-lg)',
+                      border: '1px dashed var(--border-strong)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    <BookOpen size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+                    <p style={{ fontWeight: 600, fontSize: '0.92rem' }}>Nhóm chưa có đề thi nào</p>
+                    <p style={{ fontSize: '0.82rem', marginTop: '0.2rem' }}>
+                      Hãy chia sẻ các đề bạn đã tạo ở bên dưới lên nhóm để bạn bè cùng làm!
+                    </p>
+                  </div>
+                ) : filteredGroupQuizzes.length === 0 ? (
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      padding: '2rem 1rem',
+                      background: 'var(--bg-subtle)',
+                      borderRadius: 'var(--radius-lg)',
+                      border: '1px dashed var(--border-strong)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    <Search size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+                    <p style={{ fontWeight: 600, fontSize: '0.92rem' }}>
+                      Không tìm thấy đề thi khớp với "{searchGroupTerm}"
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setSearchGroupTerm('')}
+                      style={{ marginTop: '0.65rem' }}
+                    >
+                      Xóa bộ lọc tìm kiếm
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '35vh', overflowY: 'auto' }}>
+                    {filteredGroupQuizzes.map((item) => {
                     const isOwner = item.sharedBy === currentUser;
                     const isEditing = editingQuizId === item.id;
                     const canDownload = item.allowDownload !== false;
@@ -632,68 +719,134 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
                 </div>
               )}
             </div>
-          )}
+          );
+        })()}
 
           {/* Section: Share your personal quiz banks to this group */}
-          {currentGroupId && savedBanks.length > 0 && (
-            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.6rem', color: 'var(--text-primary)' }}>
-                Đề Cá Nhân Của Bạn (Bấm để chia sẻ lên nhóm):
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '25vh', overflowY: 'auto' }}>
-                {savedBanks.map((b) => {
-                  const isShared = groupQuizzes.some((g) => g.quizBank.id === b.id || g.quizBank.title === b.title);
-                  const isCurrentSharing = sharingBankId === b.id;
+          {currentGroupId && savedBanks.length > 0 && (() => {
+            const filteredSavedBanks = savedBanks.filter((b) => {
+              if (!searchPersonalTerm.trim()) return true;
+              const term = searchPersonalTerm.toLowerCase().trim();
+              return b.title.toLowerCase().includes(term) || (b.fileName && b.fileName.toLowerCase().includes(term));
+            });
 
-                  return (
-                    <div
-                      key={b.id}
+            return (
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.6rem', color: 'var(--text-primary)' }}>
+                  Đề Cá Nhân Của Bạn (Bấm để chia sẻ lên nhóm):
+                </h3>
+
+                {savedBanks.length > 3 && (
+                  <div style={{ position: 'relative', width: '100%', marginBottom: '0.6rem' }}>
+                    <Search
+                      size={15}
                       style={{
-                        padding: '0.65rem 0.85rem',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-subtle)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.75rem',
-                        fontSize: '0.88rem',
+                        position: 'absolute',
+                        left: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-muted)',
+                        pointerEvents: 'none',
                       }}
-                    >
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontWeight: 600 }}>
-                        {b.title} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({b.questions.length} câu)</span>
-                      </div>
+                    />
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Tìm đề cá nhân cần đưa lên nhóm..."
+                      value={searchPersonalTerm}
+                      onChange={(e) => setSearchPersonalTerm(e.target.value)}
+                      style={{
+                        width: '100%',
+                        paddingLeft: '2.2rem',
+                        paddingRight: searchPersonalTerm ? '2.2rem' : '0.75rem',
+                        fontSize: '0.82rem',
+                        paddingTop: '0.35rem',
+                        paddingBottom: '0.35rem',
+                        borderRadius: 'var(--radius-md)',
+                      }}
+                    />
+                    {searchPersonalTerm && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-icon"
+                        onClick={() => setSearchPersonalTerm('')}
+                        style={{
+                          position: 'absolute',
+                          right: '0.35rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          padding: '0.2rem',
+                          color: 'var(--text-muted)',
+                        }}
+                        title="Xóa tìm kiếm"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                )}
 
-                      {isShared ? (
-                        <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
-                          <Check size={12} /> Đã có trong nhóm
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleShareBank(b)}
-                          disabled={isCurrentSharing}
-                        >
-                          {isCurrentSharing ? (
-                            <>
-                              <RotateCw size={13} className="animate-spin" />
-                              Đang đưa lên...
-                            </>
-                          ) : (
-                            <>
-                              <Share2 size={13} />
-                              Đưa lên nhóm
-                            </>
-                          )}
-                        </button>
-                      )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '25vh', overflowY: 'auto' }}>
+                  {filteredSavedBanks.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      Không tìm thấy đề cá nhân nào khớp với "{searchPersonalTerm}"
                     </div>
-                  );
-                })}
+                  ) : (
+                    filteredSavedBanks.map((b) => {
+                      const isShared = groupQuizzes.some((g) => g.quizBank.id === b.id || g.quizBank.title === b.title);
+                      const isCurrentSharing = sharingBankId === b.id;
+
+                      return (
+                        <div
+                          key={b.id}
+                          style={{
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--bg-surface)',
+                            border: '1px solid var(--border-subtle)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.75rem',
+                            fontSize: '0.88rem',
+                          }}
+                        >
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontWeight: 600 }}>
+                            {b.title} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({b.questions.length} câu)</span>
+                          </div>
+
+                          {isShared ? (
+                            <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
+                              <Check size={12} /> Đã có trong nhóm
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleShareBank(b)}
+                              disabled={isCurrentSharing}
+                            >
+                              {isCurrentSharing ? (
+                                <>
+                                  <RotateCw size={13} className="animate-spin" />
+                                  Đang đưa lên...
+                                </>
+                              ) : (
+                                <>
+                                  <Share2 size={13} />
+                                  Đưa lên nhóm
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         <div className="modal-footer">

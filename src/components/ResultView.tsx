@@ -147,8 +147,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '0.75rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: '0.85rem',
           marginBottom: '2rem',
         }}
       >
@@ -157,6 +157,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
             type="button"
             className="btn btn-primary"
             onClick={() => onRetryIncorrectOnly(incorrectQuestions)}
+            style={{ padding: '0.75rem 1rem', whiteSpace: 'normal', textAlign: 'center' }}
           >
             <RotateCcw size={16} />
             <span>Làm lại {incorrectQuestions.length} câu sai</span>
@@ -169,23 +170,43 @@ export const ResultView: React.FC<ResultViewProps> = ({
             className="btn btn-primary"
             onClick={onRefreshExam}
             title="Bốc ngẫu nhiên một đề thi mới với các câu hỏi và kiến thức khác từ tài liệu"
+            style={{
+              padding: '0.75rem 1.15rem',
+              whiteSpace: 'normal',
+              textAlign: 'center',
+            }}
           >
             <Shuffle size={16} />
             <span>Bốc đề thi mới (Câu hỏi khác)</span>
           </button>
         )}
 
-        <button type="button" className="btn btn-secondary" onClick={onRetryAll}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onRetryAll}
+          style={{ padding: '0.75rem 1rem', whiteSpace: 'normal', textAlign: 'center' }}
+        >
           <RotateCcw size={16} />
           <span>Làm lại đề vừa thi</span>
         </button>
 
-        <button type="button" className="btn btn-secondary" onClick={() => exportQuizBankToJson(quizBank)}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => exportQuizBankToJson(quizBank)}
+          style={{ padding: '0.75rem 1rem', whiteSpace: 'normal', textAlign: 'center' }}
+        >
           <Download size={16} />
           <span>Xuất file JSON</span>
         </button>
 
-        <button type="button" className="btn btn-secondary" onClick={onNewQuiz}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onNewQuiz}
+          style={{ padding: '0.75rem 1rem', whiteSpace: 'normal', textAlign: 'center' }}
+        >
           <PlusCircle size={16} />
           <span>Tạo bộ câu hỏi mới</span>
         </button>

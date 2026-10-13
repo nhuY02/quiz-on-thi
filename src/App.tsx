@@ -27,6 +27,7 @@ import { UploadView } from './components/UploadView';
 import { ConfigView } from './components/ConfigView';
 import { QuizView } from './components/QuizView';
 import { ResultView } from './components/ResultView';
+import { CustomAlertDialog, AlertData } from './components/CustomAlertDialog';
 import './App.css';
 
 export function App() {
@@ -52,8 +53,16 @@ export function App() {
   const [activeUserAnswers, setActiveUserAnswers] = useState<Record<string, number>>({});
   const [activeFlagged, setActiveFlagged] = useState<Record<string, boolean>>({});
 
-  // Initialize theme & detect group link
+  // Custom alert dialog state
+  const [alertDialog, setAlertDialog] = useState<AlertData | null>(null);
+
+  // Initialize theme, detect group link & override alert
   useEffect(() => {
+    // Override browser window.alert with modern CustomAlertDialog
+    window.alert = (message: unknown) => {
+      setAlertDialog({ message: String(message) });
+    };
+
     const savedTheme = localStorage.getItem('quiz_on_thi_theme') as 'light' | 'dark' | null;
     const initialTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     setTheme(initialTheme);
@@ -322,6 +331,12 @@ export function App() {
       <AdminModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
+      />
+
+      {/* Modern Custom Alert Dialog ("Ô OK") */}
+      <CustomAlertDialog
+        data={alertDialog}
+        onClose={() => setAlertDialog(null)}
       />
     </div>
   );

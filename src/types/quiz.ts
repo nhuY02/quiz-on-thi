@@ -37,6 +37,8 @@ export interface QuizConfig {
   selectedSectionIds: string[];
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
+  examQuestionCount?: number; // Số câu hỏi khi thi thử (vd: 40 hoặc 50 câu)
+  examTimeMinutes?: number; // Thời gian làm bài thi (phút)
 }
 
 export interface SavedQuizBank {

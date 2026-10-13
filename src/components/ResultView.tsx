@@ -16,6 +16,7 @@ import {
   Bookmark,
   ChevronDown,
   ChevronUp,
+  Shuffle,
 } from 'lucide-react';
 
 interface ResultViewProps {
@@ -27,6 +28,7 @@ interface ResultViewProps {
   onRetryAll: () => void;
   onNewQuiz: () => void;
   onViewCoverage: () => void;
+  onRefreshExam?: () => void;
 }
 
 export const ResultView: React.FC<ResultViewProps> = ({
@@ -38,6 +40,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
   onRetryAll,
   onNewQuiz,
   onViewCoverage,
+  onRefreshExam,
 }) => {
   const [filter, setFilter] = useState<'all' | 'incorrect' | 'flagged'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -160,9 +163,21 @@ export const ResultView: React.FC<ResultViewProps> = ({
           </button>
         )}
 
+        {onRefreshExam && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={onRefreshExam}
+            title="Bốc ngẫu nhiên một đề thi mới với các câu hỏi và kiến thức khác từ tài liệu"
+          >
+            <Shuffle size={16} />
+            <span>Bốc đề thi mới (Câu hỏi khác)</span>
+          </button>
+        )}
+
         <button type="button" className="btn btn-secondary" onClick={onRetryAll}>
           <RotateCcw size={16} />
-          <span>Làm lại toàn bộ đề</span>
+          <span>Làm lại đề vừa thi</span>
         </button>
 
         <button type="button" className="btn btn-secondary" onClick={() => exportQuizBankToJson(quizBank)}>

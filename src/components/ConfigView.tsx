@@ -10,6 +10,9 @@ import {
   ArrowRight,
   ArrowLeft,
   FileText,
+  Clock,
+  Timer,
+  Sparkles,
 } from 'lucide-react';
 
 interface ConfigViewProps {
@@ -32,6 +35,21 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   const [shuffleQuestions, setShuffleQuestions] = useState(true);
   const [shuffleOptions, setShuffleOptions] = useState(false);
 
+  const selectedQuestionsCount = quizBank.sections
+    .filter((s) => selectedSectionIds.includes(s.id))
+    .reduce((acc, s) => acc + s.questions.length, 0);
+
+  // Exam mode settings: default to 40 questions (or max if < 40) and 45 minutes
+  const [examQuestionCount, setExamQuestionCount] = useState<number>(
+    selectedQuestionsCount >= 40 ? 40 : selectedQuestionsCount || 40
+  );
+  const [examTimeMinutes, setExamTimeMinutes] = useState<number>(45);
+
+  const effectiveExamCount = Math.min(
+    Math.max(5, examQuestionCount || 40),
+    selectedQuestionsCount
+  );
+
   const toggleSection = (id: string) => {
     if (selectedSectionIds.includes(id)) {
       if (selectedSectionIds.length === 1) {
@@ -52,16 +70,14 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
     }
   };
 
-  const selectedQuestionsCount = quizBank.sections
-    .filter((s) => selectedSectionIds.includes(s.id))
-    .reduce((acc, s) => acc + s.questions.length, 0);
-
   const handleStart = () => {
     onStartQuiz({
       mode,
       selectedSectionIds,
       shuffleQuestions,
       shuffleOptions,
+      examQuestionCount: mode === 'exam' ? effectiveExamCount : undefined,
+      examTimeMinutes: mode === 'exam' ? examTimeMinutes : undefined,
     });
   };
 
@@ -195,10 +211,153 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
               </div>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Làm toàn bộ đề thi không hiển thị đáp án trước. Chỉ khi bạn bấm <strong>Nộp bài</strong> mới nhận điểm số, % đúng và giải thích các câu sai.
+              Làm đề thi có <strong>đếm ngược thời gian</strong>, bốc ngẫu nhiên số câu chuẩn thi (40-50 câu) từ tài liệu. Hết giờ tự nộp hoặc bấm Nộp bài để xem điểm.
             </p>
           </div>
         </div>
+
+        {/* Exam Specific Settings (Only shown in Exam mode) */}
+        {mode === 'exam' && (
+          <div
+            className="animate-fade-in"
+            style={{
+              marginTop: '1.25rem',
+              padding: '1.25rem',
+              borderRadius: 'var(--radius-lg)',
+              background: 'var(--brand-gradient-subtle)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.1rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Timer size={18} color="var(--brand-primary)" />
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Thiết Lập Đề Thi Thử
+              </h3>
+            </div>
+
+            {/* Question count picker */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Số lượng câu hỏi trong đề:
+                </span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--brand-primary)', fontWeight: 700 }}>
+                  Đang chọn: {effectiveExamCount} câu
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {[30, 40, 50].map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    className={`btn btn-sm ${examQuestionCount === count ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => {
+                      setExamQuestionCount(count);
+                      // Tự gợi ý thời gian tương ứng
+                      if (count === 40) setExamTimeMinutes(45);
+                      else if (count === 50) setExamTimeMinutes(50);
+                      else if (count === 30) setExamTimeMinutes(35);
+                    }}
+                    disabled={selectedQuestionsCount < count}
+                  >
+                    {count} câu {count === 40 ? '(Chuẩn)' : ''}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  className={`btn btn-sm ${examQuestionCount === selectedQuestionsCount ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setExamQuestionCount(selectedQuestionsCount)}
+                >
+                  Tất cả ({selectedQuestionsCount} câu)
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto' }}>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Tùy chọn:</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={selectedQuestionsCount}
+                    value={examQuestionCount}
+                    onChange={(e) => setExamQuestionCount(Number(e.target.value) || 40)}
+                    style={{
+                      width: '70px',
+                      padding: '0.3rem 0.5rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-strong)',
+                      background: 'var(--bg-surface)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                    }}
+                  />
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>câu</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Exam duration (Minutes) picker */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Thời gian làm bài thi:
+                </span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--brand-primary)', fontWeight: 700 }}>
+                  Đang chọn: {examTimeMinutes} phút
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {[30, 45, 50, 60].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    className={`btn btn-sm ${examTimeMinutes === mins ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setExamTimeMinutes(mins)}
+                  >
+                    <Clock size={13} />
+                    {mins} phút
+                  </button>
+                ))}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto' }}>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Tùy chọn:</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={240}
+                    value={examTimeMinutes}
+                    onChange={(e) => setExamTimeMinutes(Number(e.target.value) || 45)}
+                    style={{
+                      width: '70px',
+                      padding: '0.3rem 0.5rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-strong)',
+                      background: 'var(--bg-surface)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                    }}
+                  />
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>phút</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.2rem' }}>
+              <Sparkles size={14} color="var(--brand-primary)" />
+              <span>
+                Hệ thống sẽ bốc ngẫu nhiên <strong>{effectiveExamCount} câu hỏi</strong> từ các phần bạn chọn. Khi thi xong bạn có thể bấm <strong>"Bốc đề mới"</strong> để đổi sang bộ câu hỏi và kiến thức khác!
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sections selection */}
@@ -327,8 +486,17 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
           onClick={handleStart}
           disabled={selectedQuestionsCount === 0}
         >
-          <span>Bắt đầu làm bài ({selectedQuestionsCount} câu)</span>
-          <ArrowRight size={18} />
+          {mode === 'exam' ? (
+            <>
+              <span>Bắt đầu thi thử ({effectiveExamCount} câu • {examTimeMinutes} phút)</span>
+              <ArrowRight size={18} />
+            </>
+          ) : (
+            <>
+              <span>Bắt đầu luyện tập ({selectedQuestionsCount} câu)</span>
+              <ArrowRight size={18} />
+            </>
+          )}
         </button>
       </div>
     </div>

@@ -107,7 +107,7 @@ export function App() {
     setCurrentScreen('config');
   };
 
-  const handleStartQuiz = (config: QuizConfig) => {
+  const handleStartQuiz = (config: QuizConfig, excludeQuestionIds?: string[]) => {
     if (!activeQuizBank) return;
 
     setActiveConfig(config);
@@ -116,6 +116,27 @@ export function App() {
     let questionsToUse = activeQuizBank.sections
       .filter((s) => config.selectedSectionIds.includes(s.id))
       .flatMap((s) => s.questions);
+
+    // If Exam mode with custom question count limit (e.g., 40-50 questions)
+    if (config.mode === 'exam' && config.examQuestionCount && config.examQuestionCount < questionsToUse.length) {
+      if (excludeQuestionIds && excludeQuestionIds.length > 0) {
+        // Try picking fresh questions that were not in the previous exam run
+        const freshPool = questionsToUse.filter((q) => !excludeQuestionIds.includes(q.id));
+        if (freshPool.length >= config.examQuestionCount) {
+          questionsToUse = [...freshPool].sort(() => Math.random() - 0.5).slice(0, config.examQuestionCount);
+        } else {
+          // Take all fresh questions, fill remainder with randomly sampled questions from old pool
+          const remainderCount = config.examQuestionCount - freshPool.length;
+          const oldPool = questionsToUse
+            .filter((q) => excludeQuestionIds.includes(q.id))
+            .sort(() => Math.random() - 0.5)
+            .slice(0, remainderCount);
+          questionsToUse = [...freshPool, ...oldPool].sort(() => Math.random() - 0.5);
+        }
+      } else {
+        questionsToUse = [...questionsToUse].sort(() => Math.random() - 0.5).slice(0, config.examQuestionCount);
+      }
+    }
 
     // 2. Clone to avoid mutating bank directly
     questionsToUse = questionsToUse.map((q) => ({
@@ -191,6 +212,13 @@ export function App() {
     }
   };
 
+  const handleRefreshExam = () => {
+    if (activeConfig && activeQuizBank) {
+      const currentIds = activeQuestions.map((q) => q.id);
+      handleStartQuiz(activeConfig, currentIds);
+    }
+  };
+
   const handleNewQuiz = () => {
     setActiveQuizBank(null);
     setCurrentScreen('upload');
@@ -246,6 +274,7 @@ export function App() {
             flaggedQuestions={activeFlagged}
             onRetryIncorrectOnly={handleRetryIncorrectOnly}
             onRetryAll={handleRetryAll}
+            onRefreshExam={handleRefreshExam}
             onNewQuiz={handleNewQuiz}
             onViewCoverage={() => setIsCoverageOpen(true)}
           />

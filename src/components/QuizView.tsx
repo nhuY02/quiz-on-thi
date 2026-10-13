@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { QuizQuestion, QuizConfig } from '../types/quiz';
 import {
   Bookmark,
@@ -11,6 +11,7 @@ import {
   Grid,
   X,
   FileCheck2,
+  Clock,
 } from 'lucide-react';
 
 interface QuizViewProps {
@@ -31,6 +32,46 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>({});
   const [showQuestionGrid, setShowQuestionGrid] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+
+  // Exam Countdown Timer
+  const initialSeconds = (config.examTimeMinutes || 45) * 60;
+  const [timeLeft, setTimeLeft] = useState<number>(initialSeconds);
+
+  // Keep references to latest answers & flags for auto-submit when timer expires
+  const userAnswersRef = useRef(userAnswers);
+  const flaggedRef = useRef(flaggedQuestions);
+
+  useEffect(() => {
+    userAnswersRef.current = userAnswers;
+  }, [userAnswers]);
+
+  useEffect(() => {
+    flaggedRef.current = flaggedQuestions;
+  }, [flaggedQuestions]);
+
+  useEffect(() => {
+    if (config.mode !== 'exam') return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          alert('⏱️ Đã hết thời gian làm bài thi! Hệ thống sẽ tự động nộp bài của bạn.');
+          onFinishQuiz(userAnswersRef.current, flaggedRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [config.mode, onFinishQuiz]);
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   const curQ = questions[currentIndex];
   const total = questions.length;
@@ -90,7 +131,27 @@ export const QuizView: React.FC<QuizViewProps> = ({
             {config.mode === 'practice' ? (
               <span className="badge badge-neutral">Chế độ Luyện tập</span>
             ) : (
-              <span className="badge badge-warning">Chế độ Thi thử</span>
+              <>
+                <span className="badge badge-warning">Chế độ Thi thử</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: 'var(--radius-full)',
+                    background: timeLeft < 300 ? 'rgba(239, 68, 68, 0.15)' : 'var(--brand-primary-light)',
+                    color: timeLeft < 300 ? 'var(--error)' : 'var(--brand-primary)',
+                    fontWeight: 800,
+                    fontSize: '0.92rem',
+                    border: `1.5px solid ${timeLeft < 300 ? 'var(--error)' : 'rgba(99, 102, 241, 0.4)'}`,
+                  }}
+                  title="Thời gian làm bài còn lại (Hết giờ hệ thống sẽ tự nộp bài)"
+                >
+                  <Clock size={15} />
+                  <span>{formatTime(timeLeft)}</span>
+                </div>
+              </>
             )}
           </div>
 

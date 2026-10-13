@@ -7,8 +7,20 @@ import {
   query,
   orderBy,
   limit,
+  doc,
+  getDoc,
+  setDoc,
   Firestore,
 } from 'firebase/firestore';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  onAuthStateChanged,
+  User,
+  Auth,
+} from 'firebase/auth';
 
 export interface FirebaseConfig {
   apiKey: string;
@@ -44,11 +56,11 @@ export interface SubmissionLogItem {
 
 const STORAGE_KEYS = {
   FIREBASE_CONFIG: 'quiz_on_thi_firebase_config',
-  ADMIN_PASSWORD: 'quiz_on_thi_admin_password',
   USER_NICKNAME: 'quiz_on_thi_user_nickname',
 };
 
-const DEFAULT_ADMIN_PASSWORD = 'admin';
+// Owner default email from git author
+const OWNER_EMAIL = 'nhuytran264804@gmail.com';
 
 export const DEFAULT_FIREBASE_CONFIG: FirebaseConfig = {
   apiKey: "AIzaSyCbLLc6ucwGZyfQn5TBMFARrjqKPtIR7DI",
@@ -73,14 +85,6 @@ export function saveFirebaseConfig(config: FirebaseConfig): void {
   localStorage.setItem(STORAGE_KEYS.FIREBASE_CONFIG, JSON.stringify(config));
 }
 
-export function getAdminPassword(): string {
-  return localStorage.getItem(STORAGE_KEYS.ADMIN_PASSWORD) || DEFAULT_ADMIN_PASSWORD;
-}
-
-export function saveAdminPassword(password: string): void {
-  localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, password);
-}
-
 export function getUserNickname(): string {
   let name = localStorage.getItem(STORAGE_KEYS.USER_NICKNAME);
   if (!name) {
@@ -96,35 +100,136 @@ export function setUserNickname(name: string): void {
   }
 }
 
-let firestoreInstance: Firestore | null = null;
-
-function getDb(): Firestore | null {
-  if (firestoreInstance) return firestoreInstance;
-
+export function getFirebaseApp(): FirebaseApp | null {
   const config = getSavedFirebaseConfig();
   if (!config || !config.apiKey || !config.projectId) {
     return null;
   }
-
+  const apps = getApps();
+  if (apps.length > 0) return apps[0];
   try {
-    const apps = getApps();
-    let app: FirebaseApp;
-    if (apps.length > 0) {
-      app = apps[0];
-    } else {
-      app = initializeApp(config);
-    }
-    firestoreInstance = getFirestore(app);
-    return firestoreInstance;
+    return initializeApp(config);
   } catch (err) {
-    console.warn('Lỗi kết nối Firebase:', err);
+    console.warn('Lỗi khởi tạo Firebase app:', err);
     return null;
   }
 }
 
-// Reset instance when config updates
+let firestoreInstance: Firestore | null = null;
+
+function getDb(): Firestore | null {
+  if (firestoreInstance) return firestoreInstance;
+  const app = getFirebaseApp();
+  if (!app) return null;
+  try {
+    firestoreInstance = getFirestore(app);
+    return firestoreInstance;
+  } catch (err) {
+    console.warn('Lỗi kết nối Firestore:', err);
+    return null;
+  }
+}
+
 export function resetFirebaseInstance(): void {
   firestoreInstance = null;
+}
+
+/**
+ * Đăng nhập Admin bằng tài khoản Google (Firebase Authentication)
+ * Tuyệt đối không lưu mật khẩu trong code!
+ */
+export async function signInAdminWithGoogle(): Promise<{
+  success: boolean;
+  user?: User;
+  error?: string;
+}> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return { success: false, error: 'Chưa cấu hình Firebase.' };
+  }
+
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+  // Prompt user to select account
+  provider.setCustomParameters({ prompt: 'select_account' });
+
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    const userEmail = (user.email || '').toLowerCase().trim();
+
+    // Check permission:
+    // 1. Is owner email?
+    let isAllowed = userEmail === OWNER_EMAIL.toLowerCase().trim();
+
+    // 2. Or is registered in Firestore 'admins' collection?
+    if (!isAllowed) {
+      const db = getDb();
+      if (db) {
+        try {
+          const adminDoc = await getDoc(doc(db, 'admins', userEmail));
+          if (adminDoc.exists()) {
+            isAllowed = true;
+          }
+        } catch {
+          // ignore error
+        }
+      }
+    }
+
+    if (!isAllowed) {
+      await signOut(auth);
+      return {
+        success: false,
+        error: `Tài khoản (${userEmail}) không có quyền Quản trị viên (Admin). Chỉ tài khoản của chủ web mới được truy cập!`,
+      };
+    }
+
+    return { success: true, user };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('popup-closed-by-user')) {
+      return { success: false, error: 'Bạn đã đóng cửa sổ đăng nhập Google.' };
+    }
+    return { success: false, error: `Lỗi đăng nhập: ${message}` };
+  }
+}
+
+export async function signOutAdmin(): Promise<void> {
+  const app = getFirebaseApp();
+  if (app) {
+    const auth = getAuth(app);
+    await signOut(auth);
+  }
+}
+
+export function subscribeToAuthState(callback: (user: User | null) => void): () => void {
+  const app = getFirebaseApp();
+  if (!app) {
+    callback(null);
+    return () => {};
+  }
+  const auth = getAuth(app);
+  return onAuthStateChanged(auth, (user) => {
+    if (user && (user.email || '').toLowerCase() === OWNER_EMAIL.toLowerCase()) {
+      callback(user);
+    } else {
+      callback(null);
+    }
+  });
+}
+
+/**
+ * Thêm một email admin phụ vào Firestore (nếu chủ web muốn chia sẻ quyền)
+ */
+export async function addAuthorizedAdminEmail(email: string): Promise<void> {
+  const db = getDb();
+  if (!db) return;
+  const clean = email.toLowerCase().trim();
+  await setDoc(doc(db, 'admins', clean), {
+    email: clean,
+    addedAt: new Date().toISOString(),
+  });
 }
 
 /**
@@ -138,7 +243,7 @@ export async function logFileUploadEvent(data: {
   quizTitle: string;
 }): Promise<void> {
   const db = getDb();
-  if (!db) return; // Nếu chưa cấu hình Firebase thì bỏ qua nhẹ nhàng
+  if (!db) return;
 
   try {
     const log: UploadLogItem = {

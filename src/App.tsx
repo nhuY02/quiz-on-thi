@@ -9,6 +9,7 @@ import {
   getSavedQuizBanks,
   saveQuizBank,
   deleteQuizBank,
+  updateQuizBankTitle,
   getSavedLLMConfig,
   saveLLMConfig,
 } from './services/storage';
@@ -104,6 +105,17 @@ export function App() {
     if (activeQuizBank?.id === id) {
       setActiveQuizBank(null);
       setCurrentScreen('upload');
+    }
+  };
+
+  const handleUpdateBankTitle = (id: string, newTitle: string) => {
+    const updated = updateQuizBankTitle(id, newTitle);
+    setSavedBanks(updated);
+    if (activeQuizBank?.id === id) {
+      setActiveQuizBank({
+        ...activeQuizBank,
+        title: newTitle,
+      });
     }
   };
 
@@ -302,6 +314,7 @@ export function App() {
         onSelectBank={handleSelectSavedBank}
         onDeleteBank={handleDeleteBank}
         onBankImported={handleBankImported}
+        onUpdateBankTitle={handleUpdateBankTitle}
       />
 
       {activeQuizBank && (

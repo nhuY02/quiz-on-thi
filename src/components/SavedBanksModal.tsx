@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { SavedQuizBank } from '../types/quiz';
-import { X, Archive, Download, Trash2, Play, Upload, CheckCircle2 } from 'lucide-react';
+import { X, Archive, Download, Trash2, Play, Upload, CheckCircle2, Pencil } from 'lucide-react';
 import { exportQuizBankToJson, importQuizBankFromJson } from '../services/storage';
 import { showCustomConfirm } from './CustomAlertDialog';
 
@@ -11,6 +11,7 @@ interface SavedBanksModalProps {
   onSelectBank: (bank: SavedQuizBank) => void;
   onDeleteBank: (id: string) => void;
   onBankImported: (bank: SavedQuizBank) => void;
+  onUpdateBankTitle?: (id: string, newTitle: string) => void;
 }
 
 export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
@@ -20,8 +21,11 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
   onSelectBank,
   onDeleteBank,
   onBankImported,
+  onUpdateBankTitle,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingBankId, setEditingBankId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
 
   if (!isOpen) return null;
 
@@ -36,6 +40,20 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
       const message = err instanceof Error ? err.message : String(err);
       alert(message);
     }
+  };
+
+  const handleStartEdit = (b: SavedQuizBank) => {
+    setEditingBankId(b.id);
+    setEditingTitle(b.title);
+  };
+
+  const handleSaveTitle = (id: string) => {
+    const cleanTitle = editingTitle.trim();
+    if (!cleanTitle) return;
+    if (onUpdateBankTitle) {
+      onUpdateBankTitle(id, cleanTitle);
+    }
+    setEditingBankId(null);
   };
 
   return (
@@ -120,19 +138,69 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: '0.95rem',
-                        color: 'var(--text-primary)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                      title={b.title}
-                    >
-                      {b.title}
-                    </div>
+                    {editingBankId === b.id ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveTitle(b.id);
+                            if (e.key === 'Escape') setEditingBankId(null);
+                          }}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            flex: 1,
+                            minWidth: '160px',
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => handleSaveTitle(b.id)}
+                          style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem', fontWeight: 700 }}
+                        >
+                          Lưu
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => setEditingBankId(null)}
+                          style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            fontSize: '0.95rem',
+                            color: 'var(--text-primary)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={b.title}
+                        >
+                          {b.title}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-icon"
+                          onClick={() => handleStartEdit(b)}
+                          title="Đổi tên bộ câu hỏi"
+                          style={{ padding: '0.2rem', color: 'var(--text-muted)' }}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      </div>
+                    )}
                     <div
                       style={{
                         display: 'flex',

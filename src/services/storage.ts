@@ -52,6 +52,21 @@ export function deleteQuizBank(id: string): SavedQuizBank[] {
   }
 }
 
+export function updateQuizBankTitle(id: string, newTitle: string): SavedQuizBank[] {
+  try {
+    const list = getSavedQuizBanks();
+    const bank = list.find(b => b.id === id);
+    if (bank) {
+      bank.title = newTitle;
+      localStorage.setItem(STORAGE_KEYS.QUIZ_BANKS, JSON.stringify(list));
+    }
+    return list;
+  } catch (err) {
+    console.error('Lỗi khi sửa tên bộ đề:', err);
+    return getSavedQuizBanks();
+  }
+}
+
 export function getSavedLLMConfig(): LLMConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.LLM_CONFIG);

@@ -50,13 +50,22 @@ const STORAGE_KEYS = {
 
 const DEFAULT_ADMIN_PASSWORD = 'admin';
 
+export const DEFAULT_FIREBASE_CONFIG: FirebaseConfig = {
+  apiKey: "AIzaSyCbLLc6ucwGZyfQn5TBMFARrjqKPtIR7DI",
+  authDomain: "quiz-on-thi.firebaseapp.com",
+  projectId: "quiz-on-thi",
+  storageBucket: "quiz-on-thi.firebasestorage.app",
+  messagingSenderId: "95438604177",
+  appId: "1:95438604177:web:6e797e52c8c6d0fe743c30",
+};
+
 export function getSavedFirebaseConfig(): FirebaseConfig | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.FIREBASE_CONFIG);
-    if (!raw) return null;
+    if (!raw) return DEFAULT_FIREBASE_CONFIG;
     return JSON.parse(raw);
   } catch {
-    return null;
+    return DEFAULT_FIREBASE_CONFIG;
   }
 }
 

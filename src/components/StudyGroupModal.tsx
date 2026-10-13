@@ -445,54 +445,52 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
                   </button>
                 </div>
 
-                {/* Search Bar for Group Quizzes */}
-                {groupQuizzes.length > 0 && (
-                  <div style={{ position: 'relative', width: '100%', marginBottom: '0.75rem' }}>
-                    <Search
-                      size={16}
+                {/* Search Bar for Group Quizzes - Luôn hiển thị */}
+                <div style={{ position: 'relative', width: '100%', marginBottom: '0.75rem' }}>
+                  <Search
+                    size={16}
+                    style={{
+                      position: 'absolute',
+                      left: '0.85rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-muted)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Tìm kiếm đề thi trong nhóm (theo tên đề, người chia sẻ)..."
+                    value={searchGroupTerm}
+                    onChange={(e) => setSearchGroupTerm(e.target.value)}
+                    style={{
+                      width: '100%',
+                      paddingLeft: '2.4rem',
+                      paddingRight: searchGroupTerm ? '2.4rem' : '0.85rem',
+                      fontSize: '0.88rem',
+                      borderRadius: 'var(--radius-md)',
+                    }}
+                  />
+                  {searchGroupTerm && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-icon"
+                      onClick={() => setSearchGroupTerm('')}
                       style={{
                         position: 'absolute',
-                        left: '0.85rem',
+                        right: '0.4rem',
                         top: '50%',
                         transform: 'translateY(-50%)',
+                        padding: '0.25rem',
                         color: 'var(--text-muted)',
-                        pointerEvents: 'none',
                       }}
-                    />
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Tìm kiếm đề thi trong nhóm (theo tên đề, người chia sẻ)..."
-                      value={searchGroupTerm}
-                      onChange={(e) => setSearchGroupTerm(e.target.value)}
-                      style={{
-                        width: '100%',
-                        paddingLeft: '2.4rem',
-                        paddingRight: searchGroupTerm ? '2.4rem' : '0.85rem',
-                        fontSize: '0.88rem',
-                        borderRadius: 'var(--radius-md)',
-                      }}
-                    />
-                    {searchGroupTerm && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-icon"
-                        onClick={() => setSearchGroupTerm('')}
-                        style={{
-                          position: 'absolute',
-                          right: '0.4rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          padding: '0.25rem',
-                          color: 'var(--text-muted)',
-                        }}
-                        title="Xóa tìm kiếm"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                )}
+                      title="Xóa tìm kiếm"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
 
                 {isLoading ? (
                   <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
@@ -736,55 +734,53 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
                   Đề Cá Nhân Của Bạn (Bấm để chia sẻ lên nhóm):
                 </h3>
 
-                {savedBanks.length > 3 && (
-                  <div style={{ position: 'relative', width: '100%', marginBottom: '0.6rem' }}>
-                    <Search
-                      size={15}
+                <div style={{ position: 'relative', width: '100%', marginBottom: '0.6rem' }}>
+                  <Search
+                    size={15}
+                    style={{
+                      position: 'absolute',
+                      left: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-muted)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Tìm đề cá nhân cần đưa lên nhóm..."
+                    value={searchPersonalTerm}
+                    onChange={(e) => setSearchPersonalTerm(e.target.value)}
+                    style={{
+                      width: '100%',
+                      paddingLeft: '2.2rem',
+                      paddingRight: searchPersonalTerm ? '2.2rem' : '0.75rem',
+                      fontSize: '0.82rem',
+                      paddingTop: '0.35rem',
+                      paddingBottom: '0.35rem',
+                      borderRadius: 'var(--radius-md)',
+                    }}
+                  />
+                  {searchPersonalTerm && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-icon"
+                      onClick={() => setSearchPersonalTerm('')}
                       style={{
                         position: 'absolute',
-                        left: '0.75rem',
+                        right: '0.35rem',
                         top: '50%',
                         transform: 'translateY(-50%)',
+                        padding: '0.2rem',
                         color: 'var(--text-muted)',
-                        pointerEvents: 'none',
                       }}
-                    />
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Tìm đề cá nhân cần đưa lên nhóm..."
-                      value={searchPersonalTerm}
-                      onChange={(e) => setSearchPersonalTerm(e.target.value)}
-                      style={{
-                        width: '100%',
-                        paddingLeft: '2.2rem',
-                        paddingRight: searchPersonalTerm ? '2.2rem' : '0.75rem',
-                        fontSize: '0.82rem',
-                        paddingTop: '0.35rem',
-                        paddingBottom: '0.35rem',
-                        borderRadius: 'var(--radius-md)',
-                      }}
-                    />
-                    {searchPersonalTerm && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-icon"
-                        onClick={() => setSearchPersonalTerm('')}
-                        style={{
-                          position: 'absolute',
-                          right: '0.35rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          padding: '0.2rem',
-                          color: 'var(--text-muted)',
-                        }}
-                        title="Xóa tìm kiếm"
-                      >
-                        <X size={13} />
-                      </button>
-                    )}
-                  </div>
-                )}
+                      title="Xóa tìm kiếm"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '25vh', overflowY: 'auto' }}>
                   {filteredSavedBanks.length === 0 ? (

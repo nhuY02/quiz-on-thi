@@ -16,6 +16,7 @@ import {
   ArrowRight,
   BookOpen,
   Key,
+  Trash2,
 } from 'lucide-react';
 
 interface UploadViewProps {
@@ -232,6 +233,15 @@ export const UploadView: React.FC<UploadViewProps> = ({
       setIsGenerating(false);
       setCurrentSectionIndex(-1);
     }
+  };
+
+  const handleDeleteSection = (index: number) => {
+    if (sections.length <= 1) {
+      alert('Tài liệu cần có ít nhất 1 phần để sinh câu hỏi!');
+      return;
+    }
+    const updated = sections.filter((_, i) => i !== index);
+    setSections(updated);
   };
 
   const handleLoadSample = () => {
@@ -517,6 +527,30 @@ export const UploadView: React.FC<UploadViewProps> = ({
 
                     {sec.status === 'pending' && (
                       <span className="badge badge-neutral">Chờ xử lý</span>
+                    )}
+
+                    {!isGenerating && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-icon"
+                        onClick={() => handleDeleteSection(idx)}
+                        title={`Xóa "${sec.title}" để không sinh câu hỏi (tiết kiệm token)`}
+                        style={{
+                          padding: '0.35rem',
+                          color: 'var(--text-muted)',
+                          borderRadius: 'var(--radius-sm)',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = 'var(--error)';
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = 'var(--text-muted)';
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     )}
                   </div>
                 </div>

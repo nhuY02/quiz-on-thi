@@ -397,8 +397,8 @@ export const UploadView: React.FC<UploadViewProps> = ({
       {/* Sections Preview & Start Button */}
       {sections.length > 0 && !isParsing && (
         <div className="card process-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.25rem' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Tài liệu được chia thành {sections.length} phần độc lập
               </h2>
@@ -411,6 +411,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
               className="btn btn-primary btn-lg"
               onClick={handleStartGeneration}
               disabled={isGenerating}
+              style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
             >
               {isGenerating ? (
                 <>

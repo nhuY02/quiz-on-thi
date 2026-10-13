@@ -152,7 +152,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
           <form onSubmit={handleLogin}>
             <div className="modal-body">
               <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                Khu vực dành riêng cho bạn (chủ sở hữu trang web) để xem ai đã dùng web, tải lên tài liệu gì và kết quả ôn tập.
+                Khu vực dành riêng cho bạn (chủ sở hữu trang web).
               </p>
 
               {passwordError && (
@@ -180,15 +180,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose }) => {
                     type="password"
                     className="form-input"
                     style={{ width: '100%' }}
-                    placeholder="Mật khẩu mặc định: admin"
+                    placeholder="Nhập mật khẩu quản trị..."
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
                     autoFocus
                   />
                 </div>
-                <span className="form-helper">
-                  Gợi ý: Mật khẩu mặc định lần đầu là <strong>admin</strong> (có thể đổi sau khi vào trong).
-                </span>
               </div>
             </div>
 

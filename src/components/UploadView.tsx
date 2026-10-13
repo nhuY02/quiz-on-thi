@@ -20,6 +20,7 @@ import {
   Pause,
   Play,
 } from 'lucide-react';
+import { showCustomConfirm } from './CustomAlertDialog';
 
 interface UploadViewProps {
   llmConfig: LLMConfig;
@@ -56,7 +57,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
   const sectionsRef = useRef<DocumentSection[]>([]);
   sectionsRef.current = sections;
 
-  // Restore draft on mount and warn on reload during generation
+  // Restore draft on mount and warn on reload during generation using custom dialog
   useEffect(() => {
     const draft = getActiveDraft();
     if (draft && draft.sections && draft.sections.length > 0) {
@@ -75,14 +76,35 @@ export const UploadView: React.FC<UploadViewProps> = ({
       });
     }
 
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isGeneratingRef.current) {
+    // Intercept F5 / Ctrl+R to show beautiful custom confirm dialog instead of browser's ugly popup
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (
+        isGeneratingRef.current &&
+        (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')))
+      ) {
         e.preventDefault();
-        e.returnValue = '';
+        e.stopPropagation();
+
+        const confirmed = await showCustomConfirm(
+          'AI đang trong quá trình sinh câu hỏi. Tiến trình đã hoàn thành vẫn được tự động lưu an toàn trong máy bạn. Bạn có chắc muốn tải lại trang lúc này không?',
+          {
+            title: 'Cảnh Báo Tải Lại Trang',
+            confirmText: 'Tải lại trang',
+            cancelText: 'Ở lại tiếp tục',
+            type: 'warning',
+          }
+        );
+        if (confirmed) {
+          isGeneratingRef.current = false;
+          window.location.reload();
+        }
       }
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const handleFileSelect = async (selectedFile: File) => {
@@ -672,20 +694,37 @@ export const UploadView: React.FC<UploadViewProps> = ({
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.6rem',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                flexWrap: 'wrap',
               }}
             >
-              {isPaused ? (
-                <>
-                  <Pause size={16} />
-                  <span>{currentStepStatus}</span>
-                </>
-              ) : (
-                <>
-                  <RotateCw size={16} className="animate-spin" />
-                  <span>{currentStepStatus}</span>
-                </>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                {isPaused ? (
+                  <>
+                    <Pause size={16} />
+                    <span>{currentStepStatus}</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCw size={16} className="animate-spin" />
+                    <span>{currentStepStatus}</span>
+                  </>
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  color: isPaused ? '#d97706' : 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontWeight: 500,
+                }}
+              >
+                <CheckCircle2 size={13} color="var(--success)" />
+                Tự động lưu bản nháp theo thời gian thực
+              </span>
             </div>
           )}
 

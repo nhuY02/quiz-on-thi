@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { SavedQuizBank } from '../types/quiz';
-import { X, Archive, Download, Trash2, Play, Upload, CheckCircle2, Pencil } from 'lucide-react';
+import { X, Archive, Download, Trash2, Play, Upload, CheckCircle2, Pencil, Search } from 'lucide-react';
 import { exportQuizBankToJson, importQuizBankFromJson } from '../services/storage';
 import { showCustomConfirm } from './CustomAlertDialog';
 
@@ -26,6 +26,7 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingBankId, setEditingBankId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   if (!isOpen) return null;
 
@@ -56,6 +57,15 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
     setEditingBankId(null);
   };
 
+  const filteredBanks = banks.filter((b) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase().trim();
+    return (
+      b.title.toLowerCase().includes(term) ||
+      (b.fileName && b.fileName.toLowerCase().includes(term))
+    );
+  });
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
@@ -75,15 +85,17 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
             >
               <Archive size={17} />
             </div>
-            <h2 className="modal-title">Kho Đề Đã Lưu ({banks.length})</h2>
+            <h2 className="modal-title">
+              Kho Đề Đã Lưu {searchTerm ? `(${filteredBanks.length}/${banks.length})` : `(${banks.length})`}
+            </h2>
           </div>
           <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Đóng">
             <X size={18} />
           </button>
         </div>
 
-        <div className="modal-body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
               Các bộ câu hỏi được lưu trong bộ nhớ máy của bạn:
             </span>
@@ -104,6 +116,55 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
             />
           </div>
 
+          {/* Search bar */}
+          {banks.length > 0 && (
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Search
+                size={16}
+                style={{
+                  position: 'absolute',
+                  left: '0.85rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-muted)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Tìm kiếm bộ đề theo tên (ví dụ: Day01, Track04...)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  paddingLeft: '2.4rem',
+                  paddingRight: searchTerm ? '2.4rem' : '0.85rem',
+                  fontSize: '0.88rem',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-icon"
+                  onClick={() => setSearchTerm('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.4rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    padding: '0.25rem',
+                    color: 'var(--text-muted)',
+                  }}
+                  title="Xóa tìm kiếm"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
+
           {banks.length === 0 ? (
             <div
               style={{
@@ -121,9 +182,33 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
                 Khi bạn tạo đề mới hoặc bấm "Xem thử với tài liệu mẫu", ngân hàng câu hỏi sẽ xuất hiện tại đây.
               </p>
             </div>
+          ) : filteredBanks.length === 0 ? (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '2.5rem 1rem',
+                color: 'var(--text-muted)',
+                background: 'var(--bg-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px dashed var(--border-strong)',
+              }}
+            >
+              <Search size={36} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+              <p style={{ fontWeight: 600, fontSize: '0.92rem' }}>
+                Không tìm thấy bộ đề nào khớp với từ khóa "{searchTerm}"
+              </p>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setSearchTerm('')}
+                style={{ marginTop: '0.75rem' }}
+              >
+                Xóa bộ lọc tìm kiếm
+              </button>
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '55vh', overflowY: 'auto' }}>
-              {banks.map((b) => (
+              {filteredBanks.map((b) => (
                 <div
                   key={b.id}
                   style={{

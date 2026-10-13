@@ -36,6 +36,7 @@ import {
 } from '../services/firebaseService';
 import { saveQuizBank } from '../services/storage';
 import { SavedQuizBank } from '../types/quiz';
+import { showCustomConfirm } from './CustomAlertDialog';
 
 interface StudyGroupModalProps {
   isOpen: boolean;
@@ -116,8 +117,14 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
     registerGroupMember(clean, currentUser);
   };
 
-  const handleLeaveGroup = () => {
-    if (confirm('Bạn có muốn rời khỏi nhóm học tập hiện tại?')) {
+  const handleLeaveGroup = async () => {
+    const confirmed = await showCustomConfirm('Bạn có muốn rời khỏi nhóm học tập hiện tại?', {
+      title: 'Rời Nhóm Học Tập',
+      confirmText: 'Rời nhóm',
+      cancelText: 'Ở lại',
+      type: 'warning',
+    });
+    if (confirmed) {
       clearActiveGroupId();
       setCurrentGroupId(null);
       setGroupQuizzes([]);
@@ -160,7 +167,16 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
       alert('Chỉ người chia sẻ đề thi này mới có quyền xóa khỏi nhóm!');
       return;
     }
-    if (confirm(`Bạn có chắc muốn xóa đề "${item.quizBank.title}" khỏi nhóm?`)) {
+    const confirmed = await showCustomConfirm(
+      `Bạn có chắc muốn xóa đề "${item.quizBank.title}" khỏi nhóm?`,
+      {
+        title: 'Xác Nhận Xóa Đề',
+        confirmText: 'Xóa đề',
+        cancelText: 'Hủy',
+        type: 'danger',
+      }
+    );
+    if (confirmed) {
       await deleteGroupQuiz(item.id);
       await fetchQuizzes(currentGroupId);
     }

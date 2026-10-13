@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { SavedQuizBank } from '../types/quiz';
 import { X, Archive, Download, Trash2, Play, Upload, CheckCircle2 } from 'lucide-react';
 import { exportQuizBankToJson, importQuizBankFromJson } from '../services/storage';
+import { showCustomConfirm } from './CustomAlertDialog';
 
 interface SavedBanksModalProps {
   isOpen: boolean;
@@ -178,8 +179,17 @@ export const SavedBanksModal: React.FC<SavedBanksModalProps> = ({
                     </button>
                     <button
                       className="btn btn-ghost btn-icon"
-                      onClick={() => {
-                        if (confirm(`Bạn có chắc muốn xóa bộ câu hỏi "${b.title}"?`)) {
+                      onClick={async () => {
+                        const confirmed = await showCustomConfirm(
+                          `Bạn có chắc muốn xóa bộ câu hỏi "${b.title}"?`,
+                          {
+                            title: 'Xác Nhận Xóa Bộ Đề',
+                            confirmText: 'Xóa bộ đề',
+                            cancelText: 'Hủy',
+                            type: 'danger',
+                          }
+                        );
+                        if (confirmed) {
                           onDeleteBank(b.id);
                         }
                       }}

@@ -27,7 +27,7 @@ import { UploadView } from './components/UploadView';
 import { ConfigView } from './components/ConfigView';
 import { QuizView } from './components/QuizView';
 import { ResultView } from './components/ResultView';
-import { CustomAlertDialog, AlertData } from './components/CustomAlertDialog';
+import { CustomAlertDialog, showCustomAlert } from './components/CustomAlertDialog';
 import './App.css';
 
 export function App() {
@@ -53,14 +53,11 @@ export function App() {
   const [activeUserAnswers, setActiveUserAnswers] = useState<Record<string, number>>({});
   const [activeFlagged, setActiveFlagged] = useState<Record<string, boolean>>({});
 
-  // Custom alert dialog state
-  const [alertDialog, setAlertDialog] = useState<AlertData | null>(null);
-
   // Initialize theme, detect group link & override alert
   useEffect(() => {
     // Override browser window.alert with modern CustomAlertDialog
     window.alert = (message: unknown) => {
-      setAlertDialog({ message: String(message) });
+      showCustomAlert(String(message));
     };
 
     const savedTheme = localStorage.getItem('quiz_on_thi_theme') as 'light' | 'dark' | null;
@@ -333,11 +330,8 @@ export function App() {
         onClose={() => setIsAdminOpen(false)}
       />
 
-      {/* Modern Custom Alert Dialog ("Ô OK") */}
-      <CustomAlertDialog
-        data={alertDialog}
-        onClose={() => setAlertDialog(null)}
-      />
+      {/* Modern Custom Alert & Confirm Dialog ("Ô OK / Xác Nhận") */}
+      <CustomAlertDialog />
     </div>
   );
 }

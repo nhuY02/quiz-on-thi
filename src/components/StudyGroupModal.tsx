@@ -14,6 +14,10 @@ import {
   BookOpen,
   ArrowRight,
   LogOut,
+  Pencil,
+  Lock,
+  LockOpen,
+  User,
 } from 'lucide-react';
 import {
   getActiveGroupId,
@@ -22,6 +26,11 @@ import {
   getGroupQuizzes,
   shareQuizToGroup,
   deleteGroupQuiz,
+  updateGroupQuizTitle,
+  updateGroupQuizAllowDownload,
+  registerGroupMember,
+  getGroupMembers,
+  getUserNickname,
   GroupQuizItem,
 } from '../services/firebaseService';
 import { saveQuizBank } from '../services/storage';
@@ -49,6 +58,14 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [sharingBankId, setSharingBankId] = useState<string | null>(null);
 
+  // New features: Members, edit title, download permissions
+  const [currentUser] = useState<string>(getUserNickname());
+  const [members, setMembers] = useState<string[]>([]);
+  const [showMembers, setShowMembers] = useState(false);
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       const gId = getActiveGroupId();
@@ -62,8 +79,13 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
   const fetchQuizzes = async (gId: string) => {
     setIsLoading(true);
     try {
-      const list = await getGroupQuizzes(gId);
+      await registerGroupMember(gId, currentUser);
+      const [list, mList] = await Promise.all([
+        getGroupQuizzes(gId),
+        getGroupMembers(gId),
+      ]);
       setGroupQuizzes(list);
+      setMembers(mList);
     } finally {
       setIsLoading(false);
     }
@@ -87,6 +109,8 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
       clearActiveGroupId();
       setCurrentGroupId(null);
       setGroupQuizzes([]);
+      setMembers([]);
+      setShowMembers(false);
     }
   };
 
@@ -120,16 +144,66 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
 
   const handleDeleteSharedQuiz = async (item: GroupQuizItem) => {
     if (!item.id || !currentGroupId) return;
+    if (item.sharedBy !== currentUser) {
+      alert('Chỉ người chia sẻ đề thi này mới có quyền xóa khỏi nhóm!');
+      return;
+    }
     if (confirm(`Bạn có chắc muốn xóa đề "${item.quizBank.title}" khỏi nhóm?`)) {
       await deleteGroupQuiz(item.id);
       await fetchQuizzes(currentGroupId);
     }
   };
 
-  const handleSaveToMyDevice = (bank: SavedQuizBank) => {
-    saveQuizBank(bank);
-    onBankSaved(bank);
-    alert(`Đã lưu đề "${bank.title}" vào Kho đề cá nhân của bạn!`);
+  const handleStartEditTitle = (item: GroupQuizItem) => {
+    if (item.sharedBy !== currentUser) {
+      alert('Chỉ người chia sẻ bộ đề này mới có quyền sửa tên!');
+      return;
+    }
+    setEditingQuizId(item.id || null);
+    setEditingTitle(item.quizBank.title);
+  };
+
+  const handleSaveTitle = async (item: GroupQuizItem) => {
+    if (!item.id || !editingTitle.trim() || !currentGroupId) return;
+    setIsUpdating(true);
+    try {
+      await updateGroupQuizTitle(item.id, editingTitle.trim());
+      await fetchQuizzes(currentGroupId);
+      setEditingQuizId(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Lỗi khi sửa tên: ${msg}`);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleToggleDownload = async (item: GroupQuizItem) => {
+    if (item.sharedBy !== currentUser) {
+      alert('Chỉ người chia sẻ bộ đề này mới có quyền thay đổi quyền tải về!');
+      return;
+    }
+    if (!item.id || !currentGroupId) return;
+    const currentVal = item.allowDownload !== false;
+    const newVal = !currentVal;
+    try {
+      await updateGroupQuizAllowDownload(item.id, newVal);
+      await fetchQuizzes(currentGroupId);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Lỗi cập nhật quyền tải về: ${msg}`);
+    }
+  };
+
+  const handleSaveToMyDevice = (item: GroupQuizItem) => {
+    const isOwner = item.sharedBy === currentUser;
+    if (!isOwner && item.allowDownload === false) {
+      alert(`Người chia sẻ (${item.sharedBy}) đã tắt quyền tải về máy cho bộ đề này. Bạn vẫn có thể làm bài và ôn tập trực tiếp trên web!`);
+      return;
+    }
+    saveQuizBank(item.quizBank);
+    onBankSaved(item.quizBank);
+    alert(`Đã lưu đề "${item.quizBank.title}" vào Kho đề cá nhân của bạn!`);
   };
 
   if (!isOpen) return null;
@@ -211,49 +285,96 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
             </div>
           ) : (
             /* Joined a group: Active group banner */
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.9rem 1.1rem',
-                borderRadius: 'var(--radius-lg)',
-                background: 'var(--brand-primary-light)',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
-                flexWrap: 'wrap',
-                gap: '0.75rem',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--brand-primary)', fontWeight: 600 }}>
-                  Đang trong nhóm học tập:
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.9rem 1.1rem',
+                  borderRadius: 'var(--radius-lg)',
+                  background: 'var(--brand-primary-light)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--brand-primary)', fontWeight: 600 }}>
+                    Đang trong nhóm học tập:
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.15rem' }}>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.03em' }}>
+                      👥 {currentGroupId}
+                    </span>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${showMembers ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setShowMembers(!showMembers)}
+                      title="Xem danh sách thành viên trong nhóm"
+                      style={{ fontSize: '0.78rem', padding: '0.2rem 0.6rem' }}
+                    >
+                      <Users size={13} />
+                      <span>Thành viên ({members.length})</span>
+                    </button>
+                  </div>
                 </div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.03em' }}>
-                  👥 {currentGroupId}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleCopyInviteLink}
+                    title="Sao chép link mời gửi cho bạn bè"
+                  >
+                    {copiedLink ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+                    <span>{copiedLink ? 'Đã sao chép link!' : 'Sao chép link mời'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleLeaveGroup}
+                    title="Rời nhóm này"
+                    style={{ color: 'var(--error)' }}
+                  >
+                    <LogOut size={14} />
+                    <span>Rời nhóm</span>
+                  </button>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleCopyInviteLink}
-                  title="Sao chép link mời gửi cho bạn bè"
+              {/* Members drawer when toggled */}
+              {showMembers && (
+                <div
+                  className="animate-fade-in"
+                  style={{
+                    padding: '0.85rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
                 >
-                  {copiedLink ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                  <span>{copiedLink ? 'Đã sao chép link!' : 'Sao chép link mời'}</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={handleLeaveGroup}
-                  title="Rời nhóm này"
-                  style={{ color: 'var(--error)' }}
-                >
-                  <LogOut size={14} />
-                  <span>Rời nhóm</span>
-                </button>
-              </div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Users size={14} color="var(--brand-primary)" />
+                    <span>Thành viên đang tham gia nhóm ({members.length}):</span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                    {members.map((m) => {
+                      const isMe = m === currentUser;
+                      return (
+                        <span
+                          key={m}
+                          className={`badge ${isMe ? 'badge-brand' : 'badge-neutral'}`}
+                          style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem' }}
+                        >
+                          <User size={12} />
+                          {m} {isMe ? '(Bạn)' : ''}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -299,78 +420,180 @@ export const StudyGroupModal: React.FC<StudyGroupModalProps> = ({
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '35vh', overflowY: 'auto' }}>
-                  {groupQuizzes.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        padding: '0.85rem 1rem',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--bg-subtle)',
-                        border: '1px solid var(--border-subtle)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.75rem',
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontWeight: 700,
-                            fontSize: '0.92rem',
-                            color: 'var(--text-primary)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {item.quizBank.title}
-                        </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
-                          <span>{item.quizBank.questions.length} câu hỏi</span>
-                          <span>•</span>
-                          <span>Độ phủ {item.quizBank.coverageReport?.coveragePercentage || 100}%</span>
-                          <span>•</span>
-                          <span style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>
-                            Chia sẻ bởi: {item.sharedBy}
-                          </span>
-                        </div>
-                      </div>
+                  {groupQuizzes.map((item) => {
+                    const isOwner = item.sharedBy === currentUser;
+                    const isEditing = editingQuizId === item.id;
+                    const canDownload = item.allowDownload !== false;
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm"
-                          onClick={() => {
-                            onSelectQuiz(item.quizBank);
-                            onClose();
-                          }}
-                          title="Làm bài ôn tập ngay"
-                        >
-                          <Play size={13} />
-                          Ôn tập
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-icon"
-                          onClick={() => handleSaveToMyDevice(item.quizBank)}
-                          title="Lưu về máy cá nhân của bạn"
-                          style={{ padding: '0.4rem' }}
-                        >
-                          <Download size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-icon"
-                          onClick={() => handleDeleteSharedQuiz(item)}
-                          title="Xóa khỏi nhóm"
-                          style={{ padding: '0.4rem', color: 'var(--error)' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'var(--bg-subtle)',
+                          border: '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.75rem',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: '200px' }}>
+                          {isEditing ? (
+                            /* Inline Edit Title */
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={editingTitle}
+                                onChange={(e) => setEditingTitle(e.target.value)}
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.88rem', fontWeight: 600, flex: 1 }}
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                onClick={() => handleSaveTitle(item)}
+                                disabled={isUpdating}
+                                style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
+                              >
+                                Lưu
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => setEditingQuizId(null)}
+                                style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                          ) : (
+                            /* Title and Edit Button for Owner */
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <div
+                                style={{
+                                  fontWeight: 700,
+                                  fontSize: '0.92rem',
+                                  color: 'var(--text-primary)',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {item.quizBank.title}
+                              </div>
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-icon"
+                                  onClick={() => handleStartEditTitle(item)}
+                                  title="Đổi tên đề thi (Chỉ người chia sẻ mới có quyền)"
+                                  style={{ padding: '0.2rem', color: 'var(--text-muted)' }}
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span>{item.quizBank.questions.length} câu hỏi</span>
+                            <span>•</span>
+                            <span>Độ phủ {item.quizBank.coverageReport?.coveragePercentage || 100}%</span>
+                            <span>•</span>
+                            <span style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>
+                              Chia sẻ bởi: {item.sharedBy} {isOwner ? '(Bạn)' : ''}
+                            </span>
+                            {!canDownload && (
+                              <span className="badge badge-warning" style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem' }}>
+                                <Lock size={10} /> Đã khóa tải về
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                          {/* Owner: Toggle Download Permission */}
+                          {isOwner && (
+                            <button
+                              type="button"
+                              className={`btn btn-sm ${canDownload ? 'btn-ghost' : 'btn-secondary'}`}
+                              onClick={() => handleToggleDownload(item)}
+                              title={
+                                canDownload
+                                  ? 'Bấm để KHÓA quyền tải về (không cho thành viên khác tải về máy)'
+                                  : 'Bấm để MỞ quyền tải về (cho phép thành viên khác tải về máy)'
+                              }
+                              style={{
+                                fontSize: '0.75rem',
+                                padding: '0.3rem 0.55rem',
+                                color: canDownload ? 'var(--success)' : 'var(--warning)',
+                              }}
+                            >
+                              {canDownload ? <LockOpen size={12} /> : <Lock size={12} />}
+                              <span>{canDownload ? 'Cho phép tải' : 'Khóa tải về'}</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => {
+                              onSelectQuiz(item.quizBank);
+                              onClose();
+                            }}
+                            title="Làm bài ôn tập ngay"
+                          >
+                            <Play size={13} />
+                            Ôn tập
+                          </button>
+
+                          {/* Download Button (conditionally enabled by owner) */}
+                          {canDownload || isOwner ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-icon"
+                              onClick={() => handleSaveToMyDevice(item)}
+                              title="Lưu về máy cá nhân của bạn"
+                              style={{ padding: '0.4rem' }}
+                            >
+                              <Download size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon"
+                              onClick={() =>
+                                alert(
+                                  `Người chia sẻ (${item.sharedBy}) đã khóa quyền tải về máy cho bộ đề này. Bạn vẫn có thể bấm "Ôn tập" để làm bài thi trực tiếp trên web!`
+                                )
+                              }
+                              title="Người chia sẻ đã tắt quyền tải về máy cho đề này"
+                              style={{ padding: '0.4rem', opacity: 0.5, cursor: 'not-allowed', color: 'var(--text-muted)' }}
+                            >
+                              <Lock size={14} />
+                            </button>
+                          )}
+
+                          {isOwner && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon"
+                              onClick={() => handleDeleteSharedQuiz(item)}
+                              title="Xóa khỏi nhóm"
+                              style={{ padding: '0.4rem', color: 'var(--error)' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -12,6 +12,7 @@ import {
   setDoc,
   where,
   deleteDoc,
+  updateDoc,
   Firestore,
 } from 'firebase/firestore';
 import type { SavedQuizBank } from '../types/quiz';
@@ -63,6 +64,8 @@ export interface GroupQuizItem {
   quizBank: SavedQuizBank;
   sharedBy: string;
   sharedAt: string;
+  allowDownload?: boolean; // Cho phép thành viên khác tải về máy hay không (mặc định true)
+  isMemberRecord?: boolean;
 }
 
 const STORAGE_KEYS = {
@@ -369,8 +372,12 @@ export async function shareQuizToGroup(groupId: string, quizBank: SavedQuizBank)
     quizBank,
     sharedBy: getUserNickname(),
     sharedAt: new Date().toISOString(),
+    allowDownload: true, // Mặc định cho phép tải về
+    isMemberRecord: false,
   };
   await addDoc(collection(db, 'group_quizzes'), item);
+  // Đồng thời đăng ký thành viên cho người chia sẻ
+  await registerGroupMember(cleanGroup, getUserNickname());
 }
 
 /**
@@ -388,10 +395,13 @@ export async function getGroupQuizzes(groupId: string): Promise<GroupQuizItem[]>
       limit(50)
     );
     const snap = await getDocs(q);
-    const list = snap.docs.map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as Omit<GroupQuizItem, 'id'>),
-    }));
+    const list = snap.docs
+      .map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<GroupQuizItem, 'id'>),
+      }))
+      .filter((item) => !item.isMemberRecord && item.quizBank); // Chỉ lấy đề thi, bỏ qua record thành viên
+
     // Sắp xếp đề mới nhất lên đầu
     return list.sort((a, b) => (b.sharedAt || '').localeCompare(a.sharedAt || ''));
   } catch (err) {
@@ -410,5 +420,87 @@ export async function deleteGroupQuiz(id: string): Promise<void> {
     await deleteDoc(doc(db, 'group_quizzes', id));
   } catch (err) {
     console.error('Lỗi xóa đề thi khỏi nhóm:', err);
+  }
+}
+
+/**
+ * Đổi tên đề thi trong nhóm (chỉ người chia sẻ mới có quyền)
+ */
+export async function updateGroupQuizTitle(id: string, newTitle: string): Promise<void> {
+  const db = getDb();
+  if (!db) throw new Error('Chưa kết nối Firestore');
+  await updateDoc(doc(db, 'group_quizzes', id), {
+    'quizBank.title': newTitle.trim(),
+  });
+}
+
+/**
+ * Cập nhật quyền cho phép tải đề thi về máy (chỉ người chia sẻ mới có quyền)
+ */
+export async function updateGroupQuizAllowDownload(id: string, allowDownload: boolean): Promise<void> {
+  const db = getDb();
+  if (!db) throw new Error('Chưa kết nối Firestore');
+  await updateDoc(doc(db, 'group_quizzes', id), {
+    allowDownload,
+  });
+}
+
+/**
+ * Đăng ký người dùng hiện tại là thành viên nhóm
+ */
+export async function registerGroupMember(groupId: string, nickname: string): Promise<void> {
+  const db = getDb();
+  if (!db || !nickname.trim()) return;
+  const cleanGroup = groupId.trim().toUpperCase();
+  const cleanNick = nickname.trim();
+  try {
+    const docId = `__member_${cleanGroup}_${encodeURIComponent(cleanNick)}`;
+    await setDoc(
+      doc(db, 'group_quizzes', docId),
+      {
+        isMemberRecord: true,
+        groupId: cleanGroup,
+        nickname: cleanNick,
+        lastActive: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error('Lỗi đăng ký thành viên nhóm:', err);
+  }
+}
+
+/**
+ * Lấy danh sách thành viên trong nhóm
+ */
+export async function getGroupMembers(groupId: string): Promise<string[]> {
+  const db = getDb();
+  const myNick = getUserNickname();
+  if (!db) return [myNick];
+  const cleanGroup = groupId.trim().toUpperCase();
+
+  try {
+    const q = query(
+      collection(db, 'group_quizzes'),
+      where('groupId', '==', cleanGroup),
+      limit(100)
+    );
+    const snap = await getDocs(q);
+    const set = new Set<string>();
+    set.add(myNick);
+
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      if (data.isMemberRecord && data.nickname) {
+        set.add(data.nickname);
+      } else if (data.sharedBy) {
+        set.add(data.sharedBy);
+      }
+    });
+
+    return Array.from(set);
+  } catch (err) {
+    console.error('Lỗi lấy danh sách thành viên nhóm:', err);
+    return [myNick];
   }
 }

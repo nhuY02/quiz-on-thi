@@ -17,6 +17,8 @@ import {
   BookOpen,
   Key,
   Trash2,
+  Pause,
+  Play,
 } from 'lucide-react';
 
 interface UploadViewProps {
@@ -38,11 +40,16 @@ export const UploadView: React.FC<UploadViewProps> = ({
   const [parseProgress, setParseProgress] = useState<number>(0);
   const [isParsing, setIsParsing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [currentSectionIndex, setCurrentSectionIndex] = useState<number>(-1);
   const [currentStepStatus, setCurrentStepStatus] = useState<string>('');
   const [generalError, setGeneralError] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isPausedRef = useRef(false);
+  const isGeneratingRef = useRef(false);
+  const sectionsRef = useRef<DocumentSection[]>([]);
+  sectionsRef.current = sections;
 
   const handleFileSelect = async (selectedFile: File) => {
     setGeneralError('');
@@ -89,6 +96,19 @@ export const UploadView: React.FC<UploadViewProps> = ({
     }
   };
 
+  const handlePauseGeneration = () => {
+    isPausedRef.current = true;
+    setIsPaused(true);
+    setCurrentStepStatus(
+      'Đã tạm dừng. Bạn có thể xóa các phần không cần phía dưới (để tiết kiệm token), sau đó bấm "Tiếp tục sinh câu hỏi".'
+    );
+  };
+
+  const handleResumeGeneration = () => {
+    isPausedRef.current = false;
+    setIsPaused(false);
+  };
+
   const handleStartGeneration = async () => {
     if (!llmConfig.apiKey.trim()) {
       onOpenSettings();
@@ -101,71 +121,118 @@ export const UploadView: React.FC<UploadViewProps> = ({
     }
 
     setIsGenerating(true);
+    isGeneratingRef.current = true;
+    isPausedRef.current = false;
+    setIsPaused(false);
     setGeneralError('');
 
-    const updatedSections = [...sections];
+    while (isGeneratingRef.current) {
+      // 1. Wait while paused
+      while (isPausedRef.current && isGeneratingRef.current) {
+        await new Promise((r) => setTimeout(r, 250));
+      }
 
-    for (let i = 0; i < updatedSections.length; i++) {
-      // If already completed in a previous partial run, skip
-      if (updatedSections[i].status === 'completed') continue;
+      if (!isGeneratingRef.current) break;
 
-      setCurrentSectionIndex(i);
-      updatedSections[i].status = 'processing';
-      updatedSections[i].error = undefined;
-      setSections([...updatedSections]);
+      // 2. Find next section that is not completed
+      const targetIndex = sectionsRef.current.findIndex((s) => s.status !== 'completed');
+      if (targetIndex === -1) {
+        // All remaining sections completed!
+        break;
+      }
+
+      setCurrentSectionIndex(targetIndex);
+      const sectionToProcess = sectionsRef.current[targetIndex];
+
+      // Mark processing in state
+      const updated = [...sectionsRef.current];
+      updated[targetIndex] = {
+        ...updated[targetIndex],
+        status: 'processing',
+        error: undefined,
+      };
+      setSections([...updated]);
 
       try {
         const result = await processSectionQuiz(
-          updatedSections[i],
+          sectionToProcess,
           llmConfig,
           (statusText) => {
-            setCurrentStepStatus(`Phần ${i + 1}/${updatedSections.length}: ${statusText}`);
+            if (!isPausedRef.current) {
+              const currentTotal = sectionsRef.current.length;
+              const currentIdx = sectionsRef.current.findIndex((s) => s.id === sectionToProcess.id);
+              setCurrentStepStatus(`Phần ${currentIdx + 1}/${currentTotal}: ${statusText}`);
+            }
           }
         );
 
-        updatedSections[i].keyConcepts = result.keyConcepts;
-        updatedSections[i].coveredConcepts = result.coveredConcepts;
-        updatedSections[i].questions = result.questions;
-        updatedSections[i].status = 'completed';
-        setSections([...updatedSections]);
+        // Update completed section in live sections
+        const liveIndex = sectionsRef.current.findIndex((s) => s.id === sectionToProcess.id);
+        if (liveIndex !== -1) {
+          const completedList = [...sectionsRef.current];
+          completedList[liveIndex] = {
+            ...completedList[liveIndex],
+            keyConcepts: result.keyConcepts,
+            coveredConcepts: result.coveredConcepts,
+            questions: result.questions,
+            status: 'completed',
+          };
+          setSections([...completedList]);
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        updatedSections[i].status = 'error';
-        updatedSections[i].error = message;
-        setSections([...updatedSections]);
+        const liveIndex = sectionsRef.current.findIndex((s) => s.id === sectionToProcess.id);
+        if (liveIndex !== -1) {
+          const errorList = [...sectionsRef.current];
+          errorList[liveIndex] = {
+            ...errorList[liveIndex],
+            status: 'error',
+            error: message,
+          };
+          setSections([...errorList]);
+        }
         setIsGenerating(false);
-        setGeneralError(`Có lỗi tại phần ${i + 1} (${updatedSections[i].title}): ${message}`);
+        isGeneratingRef.current = false;
+        setIsPaused(false);
+        isPausedRef.current = false;
+        setGeneralError(`Có lỗi tại phần ${targetIndex + 1} (${sectionToProcess.title}): ${message}`);
         return;
       }
     }
 
     setIsGenerating(false);
+    isGeneratingRef.current = false;
+    setIsPaused(false);
+    isPausedRef.current = false;
     setCurrentSectionIndex(-1);
 
-    // Compute final coverage report and quiz bank
-    const coverageReport = calculateCoverageReport(updatedSections);
-    const allQuestions = updatedSections.flatMap((s) => s.questions);
+    // Compute final coverage report and quiz bank if all completed
+    const finalSections = sectionsRef.current;
+    if (finalSections.length > 0 && finalSections.every((s) => s.status === 'completed')) {
+      const coverageReport = calculateCoverageReport(finalSections);
+      const allQuestions = finalSections.flatMap((s) => s.questions);
 
-    const quizBank: SavedQuizBank = {
-      id: `bank_${Date.now()}`,
-      title: parsedDoc ? parsedDoc.fileName.replace(/\.[^/.]+$/, '') : 'Đề trắc nghiệm ôn thi',
-      createdAt: new Date().toISOString(),
-      fileName: parsedDoc ? parsedDoc.fileName : 'tai_lieu.pdf',
-      fileSize: parsedDoc ? parsedDoc.fileSize : 0,
-      sections: updatedSections,
-      questions: allQuestions,
-      coverageReport,
-    };
+      const quizBank: SavedQuizBank = {
+        id: `bank_${Date.now()}`,
+        title: parsedDoc ? parsedDoc.fileName.replace(/\.[^/.]+$/, '') : 'Đề trắc nghiệm ôn thi',
+        createdAt: new Date().toISOString(),
+        fileName: parsedDoc ? parsedDoc.fileName : 'tai_lieu.pdf',
+        fileSize: parsedDoc ? parsedDoc.fileSize : 0,
+        sections: finalSections,
+        questions: allQuestions,
+        coverageReport,
+      };
 
-    saveQuizBank(quizBank);
-    logFileUploadEvent({
-      fileName: quizBank.fileName,
-      fileSize: quizBank.fileSize,
-      questionCount: quizBank.questions.length,
-      sectionsCount: quizBank.sections.length,
-      quizTitle: quizBank.title,
-    });
-    onQuizReady(quizBank);
+      saveQuizBank(quizBank);
+      logFileUploadEvent({
+        fileName: quizBank.fileName,
+        fileSize: quizBank.fileSize,
+        questionCount: quizBank.questions.length,
+        sectionsCount: quizBank.sections.length,
+        quizTitle: quizBank.title,
+      });
+      onQuizReady(quizBank);
+    }
   };
 
   const handleRetrySection = async (index: number) => {
@@ -407,25 +474,71 @@ export const UploadView: React.FC<UploadViewProps> = ({
               </p>
             </div>
 
-            <button
-              className="btn btn-primary btn-lg"
-              onClick={handleStartGeneration}
-              disabled={isGenerating}
-              style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-            >
-              {isGenerating ? (
-                <>
-                  <RotateCw size={18} className="animate-spin" />
-                  Đang xử lý phần {currentSectionIndex + 1}/{sections.length}...
-                </>
-              ) : (
-                <>
-                  <Sparkles size={18} />
-                  Bắt đầu sinh câu hỏi ({sections.length} phần)
-                  <ArrowRight size={18} />
-                </>
-              )}
-            </button>
+            {isGenerating ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
+                {isPaused ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-lg"
+                    onClick={handleResumeGeneration}
+                    style={{
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    }}
+                  >
+                    <Play size={18} />
+                    Tiếp tục sinh câu hỏi
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-lg"
+                      onClick={handlePauseGeneration}
+                      title="Tạm dừng để xem hoặc xóa bớt các phần không cần phía dưới"
+                      style={{
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                      }}
+                    >
+                      <Pause size={17} />
+                      Tạm dừng
+                    </button>
+                    <button
+                      className="btn btn-primary btn-lg"
+                      disabled
+                      style={{
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                        opacity: 0.9,
+                        cursor: 'not-allowed',
+                      }}
+                    >
+                      <RotateCw size={18} className="animate-spin" />
+                      Đang xử lý phần {currentSectionIndex + 1}/{sections.length}...
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={handleStartGeneration}
+                style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+              >
+                <Sparkles size={18} />
+                Bắt đầu sinh câu hỏi ({sections.length} phần)
+                <ArrowRight size={18} />
+              </button>
+            )}
           </div>
 
           {/* Real-time status banner while generating */}
@@ -434,8 +547,9 @@ export const UploadView: React.FC<UploadViewProps> = ({
               style={{
                 padding: '0.75rem 1rem',
                 borderRadius: 'var(--radius-md)',
-                background: 'var(--brand-primary-light)',
-                color: 'var(--brand-primary)',
+                background: isPaused ? 'rgba(245, 158, 11, 0.12)' : 'var(--brand-primary-light)',
+                border: isPaused ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(99, 102, 241, 0.2)',
+                color: isPaused ? '#f59e0b' : 'var(--brand-primary)',
                 fontSize: '0.88rem',
                 fontWeight: 600,
                 display: 'flex',
@@ -443,8 +557,17 @@ export const UploadView: React.FC<UploadViewProps> = ({
                 gap: '0.6rem',
               }}
             >
-              <RotateCw size={16} className="animate-spin" />
-              <span>{currentStepStatus}</span>
+              {isPaused ? (
+                <>
+                  <Pause size={16} />
+                  <span>{currentStepStatus}</span>
+                </>
+              ) : (
+                <>
+                  <RotateCw size={16} className="animate-spin" />
+                  <span>{currentStepStatus}</span>
+                </>
+              )}
             </div>
           )}
 
@@ -530,7 +653,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
                       <span className="badge badge-neutral">Chờ xử lý</span>
                     )}
 
-                    {!isGenerating && (
+                    {((!isGenerating && sec.status !== 'processing') || (isPaused && sec.status === 'pending')) && (
                       <button
                         type="button"
                         className="btn btn-ghost btn-icon"
